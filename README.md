@@ -10,7 +10,7 @@ We will build a number of increasingly complex bitcoin wallets:
     - upload micrpython files to the device
     - manipulate the display
     - respond to button presses
-    - communite with desktop using serial port
+    - communicate with desktop using serial port
     - use asyncio for concurrency (for example, listen to serial port and buttons at the same time)
     - access filesystem and SD card
 6. `hw_simple` a basic hardware wallet with 1 private key which only signs legacy p2pkh & p2sh transactions
