@@ -57,16 +57,9 @@ def get_unspent(address):
         for tx in r.json()
     ]
 
-def get_transactions(address):
-    r = get(ADDRESS_URL.format(address), timeout=TIMEOUT)
+def get_transaction(address):
+    # this API does accept multiple contatenated addresses ... not implementing b/c KISS
+    r = get(TXS_URL.format(address), timeout=TIMEOUT)
     if r.status_code != 200:
         raise ConnectionError
-    return r.json()['transactions']
-
-def get_full_transactions(addresses):
-    addresses = ''.join(addresses)
-    r = get(TXS_URL.format(addresses), timeout=TIMEOUT)
-    if r.status_code != 200:
-        raise ConnectionError
-    print(r.json())
     return r.json()['items']

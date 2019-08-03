@@ -7,24 +7,24 @@ from bedrock.tx import Tx, TxIn, TxOut
 from bedrock.helper import decode_base58
 from bedrock.script import p2pkh_script
 
-from bitpay import get_balance, get_unspent, broadcast, get_full_transactions
+from bitpay import get_balance, get_unspent, broadcast, get_transaction
 
 class KeyPool:
 
-    def __init__(self, n, keys, index):
-        self.n = n
+    def __init__(self, size, keys, index):
+        self.size = size
         self.keys = keys
         self.index = index
 
     @classmethod
-    def create(cls, n):
-        keypool = cls(n, [], 0)
+    def create(cls, size):
+        keypool = cls(size, [], 0)
         keypool.fill()
         return keypool
 
     def fill(self):
         '''Generate N new private keys and add them to keypool'''
-        for i in range(self.n):
+        for i in range(self.size):
             secret = randint(1, N)
             key = PrivateKey(secret)
             self.keys.append(key)
@@ -57,10 +57,10 @@ class Wallet:
         self.keypool = keypool
 
     @classmethod
-    def create(cls, n):
+    def create(cls, keypool_size):
         if isfile(cls.filename):
             raise OSError("wallet file already exists")
-        keypool = KeyPool.create(n)
+        keypool = KeyPool.create(keypool_size)
         return cls(keypool)
 
     @classmethod
@@ -87,7 +87,7 @@ class Wallet:
     def transactions(self):
         transactions = []
         for address in self.keypool.addresses():
-            transactions.extend(get_full_transactions(address))
+            transactions.extend(get_transaction(address))
         return transactions
 
     def consume_address(self):
