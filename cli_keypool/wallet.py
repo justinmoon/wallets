@@ -54,20 +54,18 @@ class Wallet:
 
     filename = "wallet.pickle"
 
-    def __init__(self, receiving_keypool, change_keypool):
-        self.receiving_keypool = receiving_keypool
-        self.change_keypool = change_keypool
+    def __init__(self, keypool):
+        self.keypool = keypool
 
     @classmethod
     def create(cls, n):
         if isfile(cls.filename):
             raise OSError("wallet file already exists")
-        receiving_keypool = KeyPool.create(n)
-        change_keypool = KeyPool.create(n)
-        return cls(receiving_keypool, change_keypool)
+        keypool = KeyPool.create(n)
+        return cls(keypool)
 
     @classmethod
-    def load(self):
+    def open(self):
         with open(self.filename, 'rb') as f:
             return load(f)
 
@@ -77,32 +75,26 @@ class Wallet:
 
     def balance(self):
         balance = 0
-        for address in self.all_addresses():
+        for address in self.keypool.addresses():
             balance += get_balance(address)
         return balance
 
-    def all_addresses(self):
-        return self.receiving_keypool.addresses() + self.change_keypool.addresses()
-
     def unspent(self):
         unspent = []
-        for address in self.all_addresses():
-            unspent.extend(get_unspent(address))
+        for key in self.keypool.keys:
+            address = key.point.address(testnet=True)
+            for u in get_unspent(address):
+                unspent.append((u, key))
         return unspent
 
     def transactions(self):
         transactions = []
-        for address in self.all_addresses():
+        for address in self.keypool.addresses():
             transactions.extend(get_full_transactions(address))
         return transactions
 
-    def receiving_address(self):
-        address = self.receiving_keypool.address()
-        self.save()
-        return address
-
-    def change_address(self):
-        address = self.change_keypool.address()
+    def consume_address(self):
+        address = self.keypool.address()
         self.save()
         return address
 
@@ -125,7 +117,7 @@ class Wallet:
         # construct outputs
         send_output = construct_tx_out(address, amount)
         change_amount = input_sum - amount - fee
-        change_output = construct_tx_out(self.change_address(), change_amount)
+        change_output = construct_tx_out(self.consume_address(), change_amount)
         tx_outs = [send_output, change_output]
 
         # construct transaction
