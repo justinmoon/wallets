@@ -1,5 +1,5 @@
 import argparse
-
+from pprint import pprint
 from hd_wallet import HDWallet as Wallet
 
 def create_command(args):
@@ -22,7 +22,7 @@ def address_command(args):
 def unspent_command(args):
     wallet = Wallet.open()
     unspent = wallet.unspent(args.account)
-    print(unspent)
+    pprint(unspent)
 
 def send_command(args):
     wallet = Wallet.open()
@@ -32,16 +32,16 @@ def send_command(args):
 def transactions_command(args):
     wallet = Wallet.open()
     transactions = wallet.transactions(args.account)
-    print(transactions)
+    pprint(transactions)
 
 def accounts_command(args):
     wallet = Wallet.open()
-    print(wallet.accounts)
+    pprint(wallet.accounts)
 
 def register_account_command(args):
     wallet = Wallet.open()
     wallet.register_account(args.name)
-    print(wallet.accounts)
+    pprint(wallet.accounts)
 
 def parse():
     parser = argparse.ArgumentParser(description='SD CLI Wallet')

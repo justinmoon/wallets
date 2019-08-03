@@ -7,7 +7,7 @@ from bedrock.tx import Tx, TxIn, TxOut
 from bedrock.helper import decode_base58
 from bedrock.script import p2pkh_script
 
-from bitpay import get_balance, get_unspent, broadcast, get_transaction
+from bitpay import get_balance, get_unspent, broadcast, get_transactionss
 
 class KeyPool:
 
@@ -89,7 +89,7 @@ class KeyPoolWallet:
     def transactions(self):
         transactions = []
         for address in self.addresses():
-            transactions.extend(get_transaction(address))
+            transactions.extend(get_transactionss(address))
         return transactions
 
     def addresses(self):

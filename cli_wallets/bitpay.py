@@ -34,7 +34,7 @@ def broadcast(rawtx):
     r = post(BROADCAST_URL, data=data, timeout=TIMEOUT)
     if r.status_code != 200:
         raise ConnectionError
-    return r.json()
+    return r.json()['txid']
 
 def parse_script_pubkey(s):
     return Script.parse(BytesIO(encode_varstr(bytes.fromhex(s))))
@@ -51,8 +51,7 @@ def get_unspent(address):
         for tx in r.json()
     ]
 
-# FIXME: this should be get_transactions
-def get_transaction(address):
+def get_transactionss(address):
     # this API does accept multiple contatenated addresses ... not implementing b/c KISS
     r = get(TXS_URL.format(address), timeout=TIMEOUT)
     if r.status_code != 200:

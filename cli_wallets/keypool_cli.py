@@ -1,5 +1,5 @@
 import argparse
-
+from pprint import pprint
 from keypool_wallet import KeyPoolWallet as Wallet
 
 def create_command(args):
@@ -21,7 +21,7 @@ def address_command(args):
 def unspent_command(args):
     wallet = Wallet.open()
     unspent = wallet.unspent()
-    print(unspent)
+    pprint(unspent)
 
 def send_command(args):
     wallet = Wallet.open()
@@ -31,7 +31,7 @@ def send_command(args):
 def transactions_command(args):
     wallet = Wallet.open()
     transactions = wallet.transactions()
-    print(transactions)
+    pprint(transactions)
 
 def parse():
     parser = argparse.ArgumentParser(description='Keypool CLI Wallet')

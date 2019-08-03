@@ -7,7 +7,7 @@ from bedrock.tx import Tx, TxIn, TxOut
 from bedrock.helper import decode_base58, sha256
 from bedrock.script import p2pkh_script
 
-from bitpay import get_balance, get_unspent, broadcast, get_transaction
+from bitpay import get_balance, get_unspent, broadcast, get_transactions
 
 class SDWallet:
 
@@ -58,7 +58,7 @@ class SDWallet:
     def transactions(self):
         transactions = []
         for address in self.addresses():
-            transactions.extend(get_transaction(address))
+            transactions.extend(get_transactions(address))
         return transactions
 
     def keys(self):

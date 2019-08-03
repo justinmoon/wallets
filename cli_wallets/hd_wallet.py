@@ -8,7 +8,7 @@ from bedrock.helper import decode_base58, sha256
 from bedrock.script import p2pkh_script
 from bedrock.hd import HDPrivateKey
 
-from bitpay import get_balance, get_unspent, broadcast, get_transaction
+from bitpay import get_balance, get_unspent, broadcast, get_transactionss
 
 class HDWallet:
 
@@ -66,7 +66,7 @@ class HDWallet:
     def transactions(self, account):
         transactions = []
         for address in self.addresses(account):
-            transactions.extend(get_transaction(address))
+            transactions.extend(get_transactionss(address))
         return transactions
 
     def path(self, account, index):
