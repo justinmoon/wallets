@@ -4,7 +4,6 @@ from requests import get, post
 from bedrock.helper import encode_varstr
 from bedrock.script import Script
 
-# FIXME: use blockstream.info's api
 BASE_URL = 'https://test-insight.bitpay.com/api'
 ADDRESS_URL = BASE_URL + '/addr/{}'
 BALANCE_URL = ADDRESS_URL + '/balance'
@@ -12,11 +11,6 @@ UNSPENT_URL = ADDRESS_URL + '/utxo'
 TXS_URL = BASE_URL + '/addrs/{}/txs'
 TIMEOUT = 5
 BROADCAST_URL = BASE_URL + '/tx/send'
-
-# BASE_URL = 'https://blockstream.info/testnet/api'
-# ADDRESS_URL = BASE_URL + '/address/{}'
-# UNSPENT_URL = ADDRESS_URL + '/utxo'
-
 
 def get_balance(address):
     r = get(BALANCE_URL.format(address), timeout=TIMEOUT)

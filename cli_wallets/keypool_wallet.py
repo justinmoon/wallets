@@ -51,7 +51,7 @@ class KeyPool:
 
 class Wallet:
 
-    filename = "wallet.pickle"
+    filename = "keypool.pickle"
 
     def __init__(self, keypool):
         self.keypool = keypool
