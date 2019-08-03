@@ -28,6 +28,7 @@ class KeyPool:
             secret = randint(1, N)
             key = PrivateKey(secret)
             self.keys.append(key)
+            # for bitcoind we'd need to import addresses here ...
 
     def address(self):
         '''generate next address've run out'''
@@ -76,27 +77,22 @@ class Wallet:
 
     def balance(self):
         balance = 0
-        for address in self.receiving_keypool.addresses():
-            balance += get_balance(address)
-        for address in self.change_keypool.addresses():
+        for address in self.all_addresses():
             balance += get_balance(address)
         return balance
 
+    def all_addresses(self):
+        return self.receiving_keypool.addresses() + self.change_keypool.addresses()
+
     def unspent(self):
         unspent = []
-        all_keys = self.receiving_keypool.keys + self.change_keypool.keys
-        for key in all_keys:
-            address = key.point.address(testnet=True)
-            for u in get_unspent(address):
-                unspent.append((u, key))
+        for address in self.all_addresses():
+            unspent.extend(get_unspent(address))
         return unspent
 
     def transactions(self):
-        '''retrieves all transactions'''
         transactions = []
-        for address in self.receiving_keypool.addresses():
-            transactions.extend(get_full_transactions(address))
-        for address in self.change_keypool.addresses():
+        for address in self.all_addresses():
             transactions.extend(get_full_transactions(address))
         return transactions
 
