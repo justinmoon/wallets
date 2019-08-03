@@ -1,8 +1,6 @@
 import argparse
 
-from pprint import pprint
-from keypool_wallet import *
-from bitpay import *
+from keypool_wallet import KeyPoolWallet as Wallet
 
 def create_command(args):
     wallet = Wallet.create(args.size)
@@ -13,7 +11,7 @@ def create_command(args):
 def balance_command(args):
     wallet = Wallet.open()
     balance = wallet.balance()
-    pprint(balance)
+    print(balance)
 
 def address_command(args):
     wallet = Wallet.open()

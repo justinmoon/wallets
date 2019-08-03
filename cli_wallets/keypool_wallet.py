@@ -49,7 +49,7 @@ class KeyPool:
     def addresses(self):
         return [key.point.address(testnet=True) for key in self.keys]
 
-class Wallet:
+class KeyPoolWallet:
 
     filename = "keypool.pickle"
 
@@ -61,7 +61,9 @@ class Wallet:
         if isfile(cls.filename):
             raise OSError("wallet file already exists")
         keypool = KeyPool.create(keypool_size)
-        return cls(keypool)
+        wallet = cls(keypool)
+        wallet.save()
+        return wallet
 
     @classmethod
     def open(self):
@@ -74,21 +76,24 @@ class Wallet:
 
     def balance(self):
         balance = 0
-        for address in self.keypool.addresses():
+        for address in self.addresses():
             balance += get_balance(address)
         return balance
 
     def unspent(self):
         unspent = []
-        for address in self.keypool.addresses():
+        for address in self.addresses():
             unspent.extend(get_unspent(address))
         return unspent
 
     def transactions(self):
         transactions = []
-        for address in self.keypool.addresses():
+        for address in self.addresses():
             transactions.extend(get_transaction(address))
         return transactions
+
+    def addresses(self):
+        return self.keypool.addresses()
 
     def consume_address(self):
         address = self.keypool.address()

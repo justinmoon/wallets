@@ -51,6 +51,7 @@ def get_unspent(address):
         for tx in r.json()
     ]
 
+# FIXME: this should be get_transactions
 def get_transaction(address):
     # this API does accept multiple contatenated addresses ... not implementing b/c KISS
     r = get(TXS_URL.format(address), timeout=TIMEOUT)
