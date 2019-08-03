@@ -3,9 +3,10 @@ import argparse
 from hd_wallet import HDWallet as Wallet
 
 def create_command(args):
-    wallet = Wallet.create()
+    mnemonic, wallet = Wallet.create()
+    print("wallet created. Here is your mnemonic:")
+    print(mnemonic)
     address = wallet.consume_address(args.account)
-    print("wallet created")
     print("your first receiving address:", address)
 
 def balance_command(args):

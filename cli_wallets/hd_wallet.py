@@ -22,7 +22,6 @@ class HDWallet:
     def create(cls):
         if isfile(cls.filename):
             raise OSError("wallet file already exists")
-        # FIXME: do something with mnemonic ...
         mnemonic, master_key = HDPrivateKey.generate()
         accounts = {
             'default': {
@@ -32,7 +31,7 @@ class HDWallet:
         }
         wallet = cls(master_key, accounts)
         wallet.save()
-        return wallet
+        return mnemonic, wallet
 
     @classmethod
     def open(self):
