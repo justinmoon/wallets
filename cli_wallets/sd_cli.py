@@ -18,7 +18,7 @@ def address_command(args):
     address = wallet.consume_address()
     print(address)
 
-def unspent_command(wallet):
+def unspent_command(args):
     wallet = Wallet.open()
     unspent = wallet.unspent()
     print(unspent)

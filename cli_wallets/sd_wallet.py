@@ -117,28 +117,3 @@ def construct_tx_out(address, amount):
     h160 = decode_base58(address)
     script = p2pkh_script(h160)
     return TxOut(amount=amount, script_pubkey=script)
-
-def test_keypool():
-    size = 2
-    keypool = KeyPool.create(size)
-
-    # there are 3 keys initially
-    assert len(keypool.keys) == size
-
-    # there are 3 keys after consuming first 3 addresses
-    for i in range(size):
-        address = keypool.address()
-        assert len(keypool.keys) == size
-
-    # there are 6 keys after consuming 4th address
-    address = keypool.address()
-    assert len(keypool.keys) == size * 2
-
-# def test_wallet():
-    # size = 2
-    # # check that it saved when keypool grew
-    # loaded_keypool = Wallet.load()
-    # original_secrets = [key.secret for key in keypool]
-    # loaded_secrets = [key.secret for key in loaded_keypool]
-    # assert original_keypool == loaded_secrets
-
