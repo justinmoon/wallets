@@ -41,7 +41,6 @@ class KeyPool:
         # return testnet address
         return key.point.address(testnet=True)
 
-    # FIXME: use or remove
     def lookup_key(self, address):
         for key in self.keys:
             if key.point.address(testnet=True) == address:
@@ -81,10 +80,8 @@ class Wallet:
 
     def unspent(self):
         unspent = []
-        for key in self.keypool.keys:
-            address = key.point.address(testnet=True)
-            for u in get_unspent(address):
-                unspent.append((u, key))
+        for address in self.keypool.addresses():
+            unspent.extend(get_unspent(address))
         return unspent
 
     def transactions(self):
@@ -100,10 +97,10 @@ class Wallet:
 
     def send(self, address, amount, fee):
         # collect inputs
-        unspent_w_keys = self.unspent()
+        unspent = self.unspent()
         tx_ins = []
         input_sum = 0
-        for utxo, key in unspent_w_keys:
+        for utxo, key in unspent:
             input_sum += utxo.amount
             tx_in = TxIn(utxo.tx_id, utxo.index)
             tx_ins.append(tx_in)
@@ -125,8 +122,10 @@ class Wallet:
 
         # sign
         for i in range(len(tx_ins)):
-            utxo, private_key = unspent_w_keys[i]
-            assert tx.sign_input(i, private_key, utxo.script_pubkey)
+            utxo = unspent[i]
+            address = utxo.script_pubkey.address(testnet=True)
+            private_key = self.keypool.lookup_key(address)
+            assert tx.sign_input(i, private_key)
             print(f'signed {i}')
         
         # broadcast
