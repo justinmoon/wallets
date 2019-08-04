@@ -22,7 +22,7 @@ class HDWallet:
     def create(cls):
         if isfile(cls.filename):
             raise OSError("wallet file already exists")
-        mnemonic, master_key = HDPrivateKey.generate()
+        mnemonic, master_key = HDPrivateKey.generate(testnet=True)
         accounts = {
             'default': {
                 'bip32_prefix': "m/84'/1'/0'",
@@ -52,6 +52,7 @@ class HDWallet:
         self.save()
 
     def balance(self):
+        # FIXME: this doesn't use accounts like everything else so it's broken
         balance = 0
         for address in self.addresses():
             balance += get_balance(address)
