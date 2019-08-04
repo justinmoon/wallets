@@ -182,3 +182,46 @@ The testnet faucet we used advertises a receiving address `mkHS9ne12qx9pS9VojpwU
 ```
 
 Voila! You've written your first (extremely primitive) bitcoin wallet.
+
+## RPC
+
+(note about testnet sync required and bitcoin.conf params required)
+(note about creating a "dummy" wallet for these experiments)
+
+There are sort of 2 ways we could go about switching out bitpay's API for bitcoind RPC: leverage bitcoin core as much as possible, or leverage it as little as possible. Let's shoot for the former because it will be a little more interesting.
+
+For this exercise we would like to figure out how to offload as much work as possible to bitcoin core.
+
+We would like to be able to query addresses and see the utxos and transactions and balance of that address. But bitcoind lacks an address index that would facilitate this lookup. Such an index just maps each possible address to the transactions associated with that address.
+
+But bitcoind can build such an index for specific addresses with a manual request:
+
+```
+$ bitcoin-cli -testnet importaddress mtzQ76VrKuxZjWL74pZ3wXFVcDNvRoGUQV
+```
+
+In order to build this index for the past if will rescan the entire blockchain. Yikes! Especially given that we'd have to do this separately for each address we're interested in. It takes a few minutes each time on testnet -- and longer on mainnet.
+
+One way we could get around this is to import addresses before we use them and tell bitcoind to avoid the rescan because we (probably) know that no transactions associated with that address have happened so far.
+
+Another option would be to use the `importmulti` command which allow you to import multiple addresses at once -- as well as specify a beginning timestamp for the scan.
+
+```
+$example
+```
+
+But bitcoin core has something even better. We can use [descriptors](https://github.com/bitcoin/bitcoin/blob/master/doc/descriptors.md) to pass a transaction type and a ranged bip32 derivation path to export N addresses of that transaction from that derivation path to bitcoind. Here's how we could export 1000 addresses from your `hd_wallet.py` default account:
+
+```
+$example
+```
+
+With this, we're not only able to fetch transactions, unspents, and balances but we're also able to use bitcoin's coin selection algorithm to prepare transactions for us. Selecting which utxos to spend is a very difficult problem with many possible strategies: maximizing privacy, utxo consolidation, etc. 
+
+Here is how bitcoin core can create an unsigned transaction for us:
+
+```
+$example
+```
+
+This can replace the bulk of the `HDWallet.sign()` method we wrote previously.

@@ -92,43 +92,19 @@ class HDWallet:
                 return key.private_key
 
     def send(self, address, amount, fee, account):
-        # # collect inputs
-        # unspent = self.unspent(account)
-        # tx_ins = []
-        # input_sum = 0
-        # for utxo in unspent:
-            # input_sum += utxo.amount
-            # tx_in = TxIn(utxo.tx_id, utxo.index)
-            # tx_ins.append(tx_in)
-            # # stop once we have enough inputs
-            # if input_sum >= amount + fee:
-                # break
-
-        # # make sure we have enough
-        # assert input_sum >= amount + fee, 'Insufficient funds'
-
-        # # construct outputs
-        # send_output = construct_tx_out(address, amount)
-        # change_amount = input_sum - amount - fee
-        # change_output = construct_tx_out(self.consume_address(account), change_amount)
-        # tx_outs = [send_output, change_output]
-
-        # # construct transaction
-        # tx = Tx(1, tx_ins, tx_outs, 0, True)
+        # create unfunded transaction
         tx_ins = []
         tx_outs = [
             {address: "{0:.8f}".format(sat_to_btc(amount))},
         ]
         rawtx = create_raw_transaction(tx_ins, tx_outs)
-        print('rawtx', rawtx)
         
+        # fund it
         change_address = self.consume_address(account)
         fundedtx = fund_raw_transaction(rawtx, change_address)
-        print('fundedtx', fundedtx)
-
-        tx = Tx.parse(BytesIO(bytes.fromhex(fundedtx)), testnet=True)
 
         # sign
+        tx = Tx.parse(BytesIO(bytes.fromhex(fundedtx)), testnet=True)
         for i, tx_in in enumerate(tx.tx_ins):
             address = get_address_for_outpoint(tx_in.prev_tx.hex(), tx_in.prev_index)
             _account = self.accounts[account]  # FIXME
@@ -139,9 +115,3 @@ class HDWallet:
         # broadcast
         signedtx = tx.serialize().hex()
         return broadcast(signedtx)
-
-# FIXME: this is weird
-def construct_tx_out(address, amount):
-    h160 = decode_base58(address)
-    script = p2pkh_script(h160)
-    return TxOut(amount=amount, script_pubkey=script)

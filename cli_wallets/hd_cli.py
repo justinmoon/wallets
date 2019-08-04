@@ -1,6 +1,8 @@
 import argparse
 from pprint import pprint
 from hd_wallet import HDWallet as Wallet
+# FIXME
+from hd_rpc_wallet import HDWallet as Wallet
 
 def create_command(args):
     mnemonic, wallet = Wallet.create()
