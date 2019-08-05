@@ -1,6 +1,12 @@
 import argparse
+import logging
+
 from pprint import pprint
 from keypool_wallet import KeyPoolWallet as Wallet
+
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+
+
 
 def create_command(args):
     wallet = Wallet.create(args.size)
@@ -8,28 +14,24 @@ def create_command(args):
     print("wallet created")
     print("your first receiving address:", address)
 
-def balance_command(args):
-    wallet = Wallet.open()
-    balance = wallet.balance()
-    print(balance)
+def balance_command(args, wallet):
+    unconfirmed, confirmed = wallet.balance()
+    print(f'unconfirmed: {unconfirmed}')
+    print(f'confirmed: {confirmed}')
 
-def address_command(args):
-    wallet = Wallet.open()
+def address_command(args, wallet):
     address = wallet.consume_address()
     print(address)
 
-def unspent_command(args):
-    wallet = Wallet.open()
+def unspent_command(args, wallet):
     unspent = wallet.unspent()
     pprint(unspent)
 
-def send_command(args):
-    wallet = Wallet.open()
+def send_command(args, wallet):
     response = wallet.send(args.address, args.amount, args.fee)
     print(response)
 
-def transactions_command(args):
-    wallet = Wallet.open()
+def transactions_command(args, wallet ):
     transactions = wallet.transactions()
     pprint(transactions)
 
@@ -65,11 +67,17 @@ def parse():
     send.add_argument('fee', type=int, help='fee in satoshis')
     send.set_defaults(func=send_command)
 
+    # parse and return CLI arguments
     return parser.parse_args()
 
 def main():
     args = parse()
-    args.func(args)
+    # call handler. load wallet if we're not creating a wallet.
+    if args.func == create_command:
+        args.func(args)
+    else:
+        wallet = Wallet.open()
+        args.func(args, wallet)
 
 if __name__ == '__main__':
     main()

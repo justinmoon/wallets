@@ -7,7 +7,7 @@ from bedrock.tx import Tx, TxIn, TxOut
 from bedrock.helper import decode_base58
 from bedrock.script import p2pkh_script
 
-from bitpay import get_balance, get_unspent, broadcast, get_transactionss
+from smartbit import get_balance, get_unspent, broadcast
 
 class KeyPool:
 
@@ -28,7 +28,6 @@ class KeyPool:
             secret = randint(1, N)
             key = PrivateKey(secret)
             self.keys.append(key)
-            # for bitcoind we'd need to import addresses here ...
 
     def address(self):
         '''generate next address've run out'''
@@ -49,9 +48,9 @@ class KeyPool:
     def addresses(self):
         return [key.point.address(testnet=True) for key in self.keys]
 
-class KeyPoolWallet:
+class KeyPoolWallet:  # FIXME
 
-    filename = "keypool.pickle"
+    filename = "keypool.pickle"  # FIXME
 
     def __init__(self, keypool):
         self.keypool = keypool
@@ -75,22 +74,13 @@ class KeyPoolWallet:
             dump(self, f)
 
     def balance(self):
-        balance = 0
-        for address in self.addresses():
-            balance += get_balance(address)
-        return balance
+        return get_balance(self.addresses())
 
     def unspent(self):
-        unspent = []
-        for address in self.addresses():
-            unspent.extend(get_unspent(address))
-        return unspent
+        return get_unspent(self.addresses())
 
     def transactions(self):
-        transactions = []
-        for address in self.addresses():
-            transactions.extend(get_transactionss(address))
-        return transactions
+        return get_transactions(self.addresses())
 
     def addresses(self):
         return self.keypool.addresses()
@@ -101,15 +91,18 @@ class KeyPoolWallet:
         return address
 
     def send(self, address, amount, fee):
-        # collect inputs
+        # collect inputs and private keys needed to sign these inputs
         unspent = self.unspent()
         tx_ins = []
+        private_keys = []
         input_sum = 0
-        for utxo, key in unspent:
-            input_sum += utxo.amount
-            tx_in = TxIn(utxo.tx_id, utxo.index)
+        for utxo in unspent:
+            input_sum += utxo['amount']
+            tx_in = TxIn(utxo['prev_tx'], utxo['prev_index'])
             tx_ins.append(tx_in)
-            # stop once we have enough inputs
+            private_key = self.keypool.lookup_key(utxo['address'])
+            private_keys.append(private_key)
+            # stop once we have enough inputs to transfer "amount"
             if input_sum >= amount + fee:
                 break
 
@@ -126,12 +119,8 @@ class KeyPoolWallet:
         tx = Tx(1, tx_ins, tx_outs, 0, True)
 
         # sign
-        for i in range(len(tx_ins)):
-            utxo = unspent[i]
-            address = utxo.script_pubkey.address(testnet=True)
-            private_key = self.keypool.lookup_key(address)
-            assert tx.sign_input(i, private_key)
-            print(f'signed {i}')
+        for index, private_key in enumerate(private_keys):
+            assert tx.sign_input(index, private_key)
         
         # broadcast
         rawtx = tx.serialize().hex()

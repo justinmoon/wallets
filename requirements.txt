@@ -1,0 +1,5 @@
+-e git+https://github.com/justinmoon/bedrock.git#egg=bedrock
+pytest
+requests
+python-bitcoinrpc
+pbkdf2
