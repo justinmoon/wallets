@@ -1,7 +1,8 @@
 '''
-- We should print "private keys generated. backup now!"
 - Make a "simple wallet" which doesn't have a keypool
+- We should print "private keys generated. backup now!"
 - Perhaps bedrock needs a PrivateKey.generate() classmethod?
+- Add more logging statements
 '''
 from os.path import isfile
 from pickle import load, dump
@@ -12,7 +13,7 @@ from bedrock.tx import Tx, TxIn, TxOut
 from bedrock.helper import decode_base58
 from bedrock.script import address_to_script_pubkey
 
-from smartbit import get_balance, get_unspent, get_transactions, broadcast
+from services import get_balance, get_unspent, get_transactions, broadcast
 
 class KeyPool:
 

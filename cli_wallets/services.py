@@ -2,15 +2,15 @@ import requests
 
 from pprint import pprint
 
-BASE_URL = 'https://testnet-api.smartbit.com.au/v1/blockchain'
-ADDRESS_URL = BASE_URL + '/address/{}'
+SMARTBIT = 'https://testnet-api.smartbit.com.au/v1/blockchain'
+ADDRESS_URL = SMARTBIT + '/address/{}'
 BALANCE_URL = ADDRESS_URL + '?limit=1'
 UNSPENT_URL = ADDRESS_URL + '/unspent'
 
 # smartbits doesn't have an endpoint to get transactions for multiple addresses
-TRANSACTION_URL = 'https://test-insight.bitpay.com/api/addrs/{}/txs'
-# for some reason smartbit's wasn't working ...
-BROADCAST_URL = 'https://test-insight.bitpay.com/api/tx/send'
+BITPAY = 'https://test-insight.bitpay.com/api'
+TRANSACTION_URL = BITPAY + '/addrs/{}/txs'
+BROADCAST_URL = BITPAY + '/tx/send'
 
 def get(url):
     response = requests.get(url,)
