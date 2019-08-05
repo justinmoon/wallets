@@ -10,7 +10,6 @@ from random import randint
 
 from bedrock.ecc import N, PrivateKey
 from bedrock.tx import Tx, TxIn, TxOut
-from bedrock.helper import decode_base58
 from bedrock.script import address_to_script_pubkey
 
 from services import get_balance, get_unspent, get_transactions, broadcast
@@ -61,11 +60,15 @@ class Wallet:
             if key.point.address(testnet=True) == address:
                 return key
 
-    def consume_address(self):
+    def generate_key(self):
         secret = randint(1, N)
         key = PrivateKey(secret)
         self.keys.append(key)
         self.save()
+        return key
+
+    def consume_address(self):
+        key = self.generate_key()
         return key.point.address(testnet=True)
 
     def balance(self):
