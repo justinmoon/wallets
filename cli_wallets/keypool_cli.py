@@ -4,10 +4,6 @@ import logging
 from pprint import pprint
 from keypool_wallet import KeyPoolWallet as Wallet
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-
-
-
 def create_command(args):
     wallet = Wallet.create(args.size)
     address = wallet.consume_address()
@@ -33,10 +29,12 @@ def send_command(args, wallet):
 
 def transactions_command(args, wallet ):
     transactions = wallet.transactions()
-    pprint(transactions)
+    ids = [tx['txid'] for tx in transactions]
+    pprint(ids)
 
 def parse():
     parser = argparse.ArgumentParser(description='Keypool CLI Wallet')
+    parser.add_argument('--debug', help='Print debug statements', action='store_true')
     subparsers = parser.add_subparsers(help='sub-command help')
 
     # create
@@ -72,6 +70,10 @@ def parse():
 
 def main():
     args = parse()
+
+    # configure logger
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
+
     # call handler. load wallet if we're not creating a wallet.
     if args.func == create_command:
         args.func(args)

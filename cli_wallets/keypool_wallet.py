@@ -1,3 +1,8 @@
+'''
+- We should print "private keys generated. backup now!"
+- Make a "simple wallet" which doesn't have a keypool
+- Perhaps bedrock needs a PrivateKey.generate() classmethod?
+'''
 from os.path import isfile
 from pickle import load, dump
 from random import randint
@@ -5,9 +10,9 @@ from random import randint
 from bedrock.ecc import N, PrivateKey
 from bedrock.tx import Tx, TxIn, TxOut
 from bedrock.helper import decode_base58
-from bedrock.script import p2pkh_script
+from bedrock.script import address_to_script_pubkey
 
-from smartbit import get_balance, get_unspent, broadcast
+from smartbit import get_balance, get_unspent, get_transactions, broadcast
 
 class KeyPool:
 
@@ -29,7 +34,7 @@ class KeyPool:
             key = PrivateKey(secret)
             self.keys.append(key)
 
-    def address(self):
+    def consume_address(self):
         '''generate next address've run out'''
         # refill keypool if it's empty
         if self.index >= len(self.keys):
@@ -73,6 +78,14 @@ class KeyPoolWallet:  # FIXME
         with open(self.filename, 'wb') as f:
             dump(self, f)
 
+    def addresses(self):
+        return self.keypool.addresses()
+
+    def consume_address(self):
+        address = self.keypool.consume_address()
+        self.save()
+        return address
+
     def balance(self):
         return get_balance(self.addresses())
 
@@ -81,14 +94,6 @@ class KeyPoolWallet:  # FIXME
 
     def transactions(self):
         return get_transactions(self.addresses())
-
-    def addresses(self):
-        return self.keypool.addresses()
-
-    def consume_address(self):
-        address = self.keypool.address()
-        self.save()
-        return address
 
     def send(self, address, amount, fee):
         # collect inputs and private keys needed to sign these inputs
@@ -110,9 +115,11 @@ class KeyPoolWallet:  # FIXME
         assert input_sum >= amount + fee, 'Insufficient funds'
 
         # construct outputs
-        send_output = construct_tx_out(address, amount)
+        send_script_pubkey = address_to_script_pubkey(address)
+        send_output = TxOut(script_pubkey=send_script_pubkey, amount=amount)
         change_amount = input_sum - amount - fee
-        change_output = construct_tx_out(self.consume_address(), change_amount)
+        change_script_pubkey = address_to_script_pubkey(self.consume_address())
+        change_output = TxOut(script_pubkey=change_script_pubkey, amount=change_amount)
         tx_outs = [send_output, change_output]
 
         # construct transaction
@@ -125,33 +132,3 @@ class KeyPoolWallet:  # FIXME
         # broadcast
         rawtx = tx.serialize().hex()
         return broadcast(rawtx)
-
-def construct_tx_out(address, amount):
-    h160 = decode_base58(address)
-    script = p2pkh_script(h160)
-    return TxOut(amount=amount, script_pubkey=script)
-
-def test_keypool():
-    size = 2
-    keypool = KeyPool.create(size)
-
-    # there are 3 keys initially
-    assert len(keypool.keys) == size
-
-    # there are 3 keys after consuming first 3 addresses
-    for i in range(size):
-        address = keypool.address()
-        assert len(keypool.keys) == size
-
-    # there are 6 keys after consuming 4th address
-    address = keypool.address()
-    assert len(keypool.keys) == size * 2
-
-# def test_wallet():
-    # size = 2
-    # # check that it saved when keypool grew
-    # loaded_keypool = Wallet.load()
-    # original_secrets = [key.secret for key in keypool]
-    # loaded_secrets = [key.secret for key in loaded_keypool]
-    # assert original_keypool == loaded_secrets
-

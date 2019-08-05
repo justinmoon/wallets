@@ -7,6 +7,8 @@ ADDRESS_URL = BASE_URL + '/address/{}'
 BALANCE_URL = ADDRESS_URL + '?limit=1'
 UNSPENT_URL = ADDRESS_URL + '/unspent'
 
+# smartbits doesn't have an endpoint to get transactions for multiple addresses
+TRANSACTION_URL = 'https://test-insight.bitpay.com/api/addrs/{}/txs'
 # for some reason smartbit's wasn't working ...
 BROADCAST_URL = 'https://test-insight.bitpay.com/api/tx/send'
 
@@ -32,12 +34,15 @@ def get_balance(addresses):
         confirmed += address['confirmed']['balance_int']
     return unconfirmed, confirmed
 
+def get_transactions(addresses):
+    addresses = ','.join(addresses)
+    return get(TRANSACTION_URL.format(addresses))['items']
+
 def get_unspent(addresses):
     unspent = []
     addresses = ','.join(addresses)
     data = get(UNSPENT_URL.format(addresses))
     for tx in data['unspent']:
-        print(tx)
         # sanity check
         assert len(tx['addresses']) == 1
         # convert response to a dictionary w/ only parameters we care about
