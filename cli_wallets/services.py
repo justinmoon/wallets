@@ -29,7 +29,11 @@ def get_balance(addresses):
     confirmed = 0
     addresses = ','.join(addresses)
     data = get(ADDRESS_URL.format(addresses))
-    for address in data['addresses']:
+    if 'address' in data:
+        addresses = [data['address']]
+    else:
+        addresses = data['addresses']
+    for address in addresses:
         unconfirmed += address['unconfirmed']['balance_int']
         confirmed += address['confirmed']['balance_int']
     return unconfirmed, confirmed
