@@ -10,21 +10,21 @@ def create_command(args):
     print("wallet created")
     print("your first receiving address:", address)
 
-def address_command(args, wallet):
-    address = wallet.consume_address()
+def address_command(args):
+    address = args.wallet.consume_address()
     print(address)
 
-def balance_command(args, wallet):
-    unconfirmed, confirmed = wallet.balance()
+def balance_command(args):
+    unconfirmed, confirmed = args.wallet.balance()
     print(f'unconfirmed: {unconfirmed}')
     print(f'confirmed: {confirmed}')
 
-def unspent_command(args, wallet):
-    unspent = wallet.unspent()
+def unspent_command(args):
+    unspent = args.wallet.unspent()
     pprint(unspent)
 
-def transactions_command(args, wallet):
-    transactions = wallet.transactions()
+def transactions_command(args):
+    transactions = args.wallet.transactions()
     ids = [tx['txid'] for tx in transactions]
     pprint(ids)
 
@@ -65,8 +65,14 @@ def parse_args():
     send.add_argument('fee', type=int, help='fee in satoshis')
     send.set_defaults(func=send_command)
 
-    # parse and return CLI arguments
-    return parser.parse_args()
+    # parse
+    args = parser.parse_args()
+
+    # load wallet if there should be one
+    if args.func != create_command:
+        args.wallet = Wallet.open()
+
+    return args
 
 def main():
     args = parse_args()
@@ -74,12 +80,8 @@ def main():
     # configure logger
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
 
-    # call handler. load wallet if we're not creating a wallet.
-    if args.func == create_command:
-        args.func(args)
-    else:
-        wallet = Wallet.open()
-        args.func(args, wallet)
+    # exercise callback
+    args.func(args)
 
 if __name__ == '__main__':
     main()

@@ -478,32 +478,39 @@ $ python cli.py transactions
 ['1347ada82e303cdcfbda4766992e4bc0b479801e243c96d34117e0b6e29eb6f5']
 ```
 
-It's a little annoying how we have to manually call `Wallet.open()` at the top of each callback function. We could improve it by loading a `Wallet` instance and passing to the handler so long as the command isn't `create_command` (no wallet should exist in this case):
+It's a little annoying how we have to manually call `Wallet.open()` at the top of each callback function. We could improve it by loading a `Wallet` instance and attaching it to `args` at the bottom of `parse_args`:
 
 ```python
 ...
 
-def address_command(args, wallet):
+def address_command(args):
+    address = args.wallet.consume_address()
     ...
 
-def balance_command(args, wallet):
+def balance_command(args):
+    unconfirmed, confirmed = args.wallet.balance()
     ...
 
-def unspent_command(args, wallet):
+def unspent_command(args):
+    unspent = args.wallet.unspent()
     ...
 
-def transactions_command(args, wallet):
+def transactions_command(args):
+    transactions = args.wallet.transactions()
     ...
 
-def main():
-    args = parse()
+def parse_args():
+    ...
+    
+    # parse args
+    args = parser.parse_args()
 
-    # call handler. load wallet if we're not creating a wallet.
-    if args.func == create_command:
-        args.func(args)
-    else:
-        wallet = Wallet.open()
-        args.func(args, wallet)
+    # load wallet if there should be one
+    if args.func != create_command:
+        args.wallet = Wallet.open()
+
+    # return args
+    return args
 ```
 
 You can test the examples above still work after this refactor.
@@ -517,8 +524,8 @@ This one will be a little more interesting. It will need to take 3 arguments: ad
 ```python
 ...
 
-def send_command(args, wallet):
-    response = wallet.send(args.address, args.amount, args.fee)
+def send_command(args):
+    response = args.wallet.send(args.address, args.amount, args.fee)
     print(response)
 
 ...
