@@ -94,7 +94,7 @@ Notes:
 
 At this point we'd be able to call `.save()` on any `Wallet` instance and the wallet state (only private keys so far) would be save to disk. But we wouldn't be able to load it from disk. For that, we need a few more methods:
 
-```
+```python
 class Wallet:
 
     ...
@@ -160,7 +160,7 @@ As you can see we're able to create a `Wallet` generate an address, delete the `
 
 One problem remains, however: if we create another `Wallet` instance and save it, our old wallet file will be deleted. Let's create a `Wallet.create()` method which will raise an error if any wallet file already exists. If we only ever create `Wallet` instances with this or `Wallet.open` we can avoid overwriting wallet files. This isn't a perfect approach -- perhaps it would be better to give identifiers to wallets and only allow updates to wallet files if identifiers in the JSON matched. But this is good enough for "hello, world". You can explore such ideas and I'll be happy to answer questions.
 
-```
+```python
 from os.path import isfile
 
 ...
@@ -219,7 +219,7 @@ You will find a [`services.py`](./services.py) file in this directory containing
 
 Since these methods all take a list of addresses as argument, it would be convenient to make a method on `Wallet` to generate all our addresses. We could also make a couple convenience methods to exercise the functions defined in `services`:
 
-```
+```python
 from services import get_balance, get_unspent, get_transactions
 
 class Wallet:
@@ -256,7 +256,11 @@ Notes:
 
 We're just missing one piece before you can call this a (shitty) Bitcoin wallet: transaction signing.
 
-```
+```python
+class Wallet:
+
+    ...
+    
     def send(self, address, amount, fee):
         # collect inputs and private keys needed to sign these inputs
         unspent = self.unspent()
@@ -447,7 +451,7 @@ Once again, fund this address using a [testnet faucet](https://testnet-faucet.me
 
 Now let's implement "balance", "unspent", "address", and "transactions":
 
-```
+```python
 from pprint import pprint
 
 def address_command(args):
@@ -520,7 +524,7 @@ $ python cli.py transactions
 
 It's a little annoying how we have to manually call `Wallet.open()` every time. We could improve it by loading a `Wallet` instance and passing to the handler so long as the command isn't `create_command`:
 
-```
+```python
 ...
 
 def address_command(args, wallet):
@@ -554,7 +558,7 @@ Lastly, we need a `python cli.py send` command.
 
 This one will be a little more interesting. It will need to take 3 arguments: address, amount, and fee. These will be passed as parameters to `Wallet.send()`.
 
-```
+```python
 ...
 
 def send_command(args, wallet):
@@ -595,7 +599,7 @@ $ python cli.py send mkHS9ne12qx9pS9VojpwU5xtRd4T7X7ZUt 4000 500
 Lastly, let's do us a favor and add a `--debug` command-line argument which will set the logging level to `DEBUG` if passed which will print more verbose logging information:
 
 
-```
+```python
 import logging
 
 ...
