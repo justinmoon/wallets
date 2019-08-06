@@ -4,7 +4,7 @@ We will build a number of increasingly complex bitcoin wallets:
 
 1. [`cli_simple`](./cli_simple) will generate new secrets for every address we use
 2. [`cli_keypool`](./cli_keypool) will generate addresses in chunks, reducing the need for backup
-3. `cli_sd` will be a "sequential deterministic wallet" which hashes the master private key to derive an infinite chain of sequential child private keys
+3. [`cli_sd`](./cli_sd) will be a "sequential deterministic wallet" which hashes the master private key to derive an infinite chain of sequential child private keys
 4. `cli_hd` will use BIP32's "hierarchical deterministic" key derivation to produce a tree of child private keys from one master private key
 5. `m5stack` will include basic exercises to learn to do the following with your m5stack:
     - install custom firmware with bitcoin primitives
