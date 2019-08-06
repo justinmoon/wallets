@@ -15,6 +15,7 @@ BROADCAST_URL = BITPAY + '/tx/send'
 def get(url):
     response = requests.get(url,)
     if response.status_code != 200:
+        print(response.text)
         raise ConnectionError
     return response.json()
 

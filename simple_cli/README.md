@@ -387,3 +387,289 @@ It prints out the ID of the transaction we just created. You can see how our unc
 That's it! You've written your first bitcoin wallet.
 
 But our wallet still has some serious flaws. One of the big ones is that it would require backup every time a new private key is generated. Otherwise, if you computer crashed you'd loose that un-backed-up private key. Managing backups was a big hassle with early bitcoin wallet. Our next wallet will use a "keypool" to generate a big chunk of keys ahead of time so that you would only need to backup once per chunk of keys generated. After that we will explore "deterministic" wallet that take one secret and generate a sequence or hierarchy of keys from it.
+
+But before we more on, let's write a command-line-interface (CLI) for our wallet.
+
+## CLI
+
+To build our CLI we'll use [argparse](https://docs.python.org/3/library/argparse.html), a CLI library in the Python Standard Library.
+
+### Create Wallet Command
+
+To get started, add the following in a `cli.py` file:
+
+```python
+import argparse
+
+from wallet import Wallet
+
+def create_command(args):
+    wallet = Wallet.create()
+    address = wallet.consume_address()
+    print("wallet created")
+    print("your first receiving address:", address)
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Simple CLI Wallet')
+    subparsers = parser.add_subparsers(help='sub-command help')
+
+    # create
+    create = subparsers.add_parser('create', help='create wallet')
+    create.set_defaults(func=create_command)
+
+    return parser.parse_args()
+
+def main():
+    args = parse_args()
+    args.func(args)
+
+if __name__ == '__main__':
+    main()
+```
+
+Notes:
+- `parse_args` uses argparse to read and interpret the arguments pass when calling this `cli.py` function from the command line. Since we want our CLI to support a number of subcommands such as `python cli.py balance`, `python cli.py send 2N2Yo65pN8WYihKUHnPqmXg2gshy3ZRFzPS 5000 500`, `python cli.py transactiuons` and `python cli.py unspent`, we use `subparsers = parser.add_subparsers` and `subparsers.add_parser(...)` to register register separate handlers for each of these cases.
+- We define on such subparser for now: balance. We associate it with a callback function using `balance.set_default(func=<callback>)`. This allows us to call `args.func(args)` further down. This will just call `<callback>`.
+- Lastly, our `create_command` callback takes that args object form argparse (which doesn't contain any interesting information in this case), creates a the wallet, fetches the balance, printes out the first receiving address.
+
+Move your current `wallet.json` to a different location and create a new wallet from the command line:
+
+```
+$ mv wallet.json old.json
+$ python cli.py create
+wallet created
+your first receiving address: n132VpbgSXLBZSRhpdgRXF3YrAbRVS1r8e
+```
+
+Once again, fund this address using a [testnet faucet](https://testnet-faucet.mempool.co/).
+
+### Informational Commands
+
+Now let's implement "balance", "unspent", "address", and "transactions":
+
+```
+from pprint import pprint
+
+def address_command(args):
+    wallet = Wallet.open()
+    address = wallet.consume_address()
+    print(address)
+
+def balance_command(args):
+    wallet = Wallet.open()
+    unconfirmed, confirmed = wallet.balance()
+    print(f'unconfirmed: {unconfirmed}')
+    print(f'confirmed: {confirmed}')
+
+def transactions_command(args):
+    wallet = Wallet.open()
+    transactions = wallet.transactions()
+    ids = [tx['txid'] for tx in transactions]
+    pprint(ids)
+
+def unspent_command(args):
+    wallet = Wallet.open()
+    unspent = wallet.unspent()
+    pprint(unspent)
+
+def parse_args():
+    
+    ...
+
+    # address
+    address = subparsers.add_parser('address', help='generate new address')
+    address.set_defaults(func=address_command)
+
+    # balance
+    balance = subparsers.add_parser('balance', help='wallet balance')
+    balance.set_defaults(func=balance_command)
+
+    # transactions
+    transactions = subparsers.add_parser('transactions', help='transaction history')
+    transactions.set_defaults(func=transactions_command)
+
+    # unspent
+    unspent = subparsers.add_parser('unspent', help='unspent transaction outputs')
+    unspent.set_defaults(func=unspent_command)
+    
+    ...
+    
+```
+
+Notes:
+- TODO: add some kind of sorting flag or something
+- This is mostly copy-paste
+
+Let's test it:
+
+```
+$ python cli.py address
+mobmPdXFkuwnk71Uf5dHrB7umvKEVLRVkK
+$ python cli.py balance
+unconfirmed: 0
+confirmed: 1000000
+$ python cli.py unspent
+[{'address': 'muQsmiqoiKYXnSFohRHSg4dFfmkYiJYYAR',
+  'amount': 1000000,
+  'prev_index': 1,
+  'prev_tx': b'\x13G\xad\xa8.0<\xdc\xfb\xdaGf\x99.K\xc0\xb4y\x80\x1e$<\x96\xd3'
+             b'A\x17\xe0\xb6\xe2\x9e\xb6\xf5'}]
+$ python cli.py transactions
+['1347ada82e303cdcfbda4766992e4bc0b479801e243c96d34117e0b6e29eb6f5']
+```
+
+It's a little annoying how we have to manually call `Wallet.open()` every time. We could improve it by loading a `Wallet` instance and passing to the handler so long as the command isn't `create_command`:
+
+```
+...
+
+def address_command(args, wallet):
+    ...
+
+def balance_command(args, wallet):
+    ...
+
+def unspent_command(args, wallet):
+    ...
+
+def transactions_command(args, wallet):
+    ...
+
+def main():
+    args = parse()
+
+    # call handler. load wallet if we're not creating a wallet.
+    if args.func == create_command:
+        args.func(args)
+    else:
+        wallet = Wallet.open()
+        args.func(args, wallet)
+```
+
+You can test the examples above still work after this refactor.
+
+### Send Command
+
+Lastly, we need a `python cli.py send` command.
+
+This one will be a little more interesting. It will need to take 3 arguments: address, amount, and fee. These will be passed as parameters to `Wallet.send()`.
+
+```
+...
+
+def send_command(args, wallet):
+    response = wallet.send(args.address, args.amount, args.fee)
+    print(response)
+
+...
+
+def parse_args():
+    
+    ...
+    
+    # "send"
+    send = subparsers.add_parser('send', help='send bitcoins')
+    send.add_argument('address', help='recipient\'s bitcoin address')
+    send.add_argument('amount', type=int, help='how many satoshis to send')
+    send.add_argument('fee', type=int, help='fee in satoshis')
+    send.set_defaults(func=send_command)
+    
+    ...
+
+```
+
+Notes
+- We register argument with the `send` subparsers by calling `send.add_argument`.
+- We override the default "str" type of arguments for `amount` and `fee` to be of type `int`.
+- Within `send_command`, these values ar available on the `args` object and can be sent directly to `wallet.send(...)`
+
+Let's test it:
+
+```
+$ python cli.py send mkHS9ne12qx9pS9VojpwU5xtRd4T7X7ZUt 4000 500
+6ae9ca8816eb0a2e99afbbe7df1d250529d47b13f7a204ceb4b711aa0c213b7c
+```
+
+### Debug Command
+
+Lastly, let's do us a favor and add a `--debug` command-line argument which will set the logging level to `DEBUG` if passed which will print more verbose logging information:
+
+
+```
+import logging
+
+...
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description='Simple CLI Wallet')
+    parser.add_argument('--debug', help='Print debug statements', action='store_true')
+    ...
+    
+def main():
+    args = parse_args()
+
+    # configure logger
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING)
+    ...
+
+```
+
+Let's test it:
+
+```
+$ python cli.py --debug send mkHS9ne12qx9pS9VojpwU5xtRd4T7X7ZUt 4000 500
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): testnet-api.smartbit.com.au:443
+DEBUG:urllib3.connectionpool:https://testnet-api.smartbit.com.au:443 "GET /v1/blockchain/address/muQsmiqoiKYXnSFohRHSg4dFfmkYiJYYAR,mobmPdXFkuwnk71Uf5dHrB7umvKEVLRVkK,mvp4SpP1z6awfzSTVbXRdpm2tmNEQW4Grv,moJj71qcFUVvkLL65wyaJGHE1XW5RYZzA6,mfa2n91fuQMs2ic75TAucpyUK6kZNEF7Pr/unspent HTTP/1.1" 200 402
+DEBUG:BitcoinRPC:-1-> getrawtransaction ["f2fb5786f2b61df20c860311002a54da9d12a3b5ef50bde6924eb73606ae58ee"]
+DEBUG:BitcoinRPC:<-1- "01000000017c3b210caa11b7b4ce04a2f7137bd42905251ddfe7bbaf992e0aeb1688cae96a010000006b483045022100a570c1f53e908e8ad56bd8367c147838178cb90a46589b7ea47e3c5e514f57e6022028664f753a1b8f4c4d1ca91be6a5a05113783ed9d1dac7123319440d33b9284801210349296aeca520b3f3b1b0716b7a658ccedb866a64f8e0b58c1aa2ab6d34ac5628ffffffff02a00f0000000000001976a914344a0f48ca150ec2b903817660b9b68b13a6702688ac181f0f00000000001976a914557101063abca8a5e386744e454221e8a7f87dd588ac00000000"
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:30450221009a12be76e56eb0                              
+INFO:bedrock.script:031d5d37523e3e6d3502d20c                              
+INFO:bedrock.script:OP_DUP                                                
+INFO:bedrock.script:OP_HASH160                                            
+INFO:bedrock.script:557101063abca8a5e386744e                              
+INFO:bedrock.script:OP_EQUALVERIFY                                        
+INFO:bedrock.script:OP_CHECKSIG                                           
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:031d5d37523e3e6d3502d20c                              
+INFO:bedrock.script:OP_DUP                                                
+INFO:bedrock.script:OP_HASH160                                            
+INFO:bedrock.script:557101063abca8a5e386744e                              
+INFO:bedrock.script:OP_EQUALVERIFY                                        
+INFO:bedrock.script:OP_CHECKSIG                30450221009a12be76e56eb0   
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:OP_DUP                                                
+INFO:bedrock.script:OP_HASH160                                            
+INFO:bedrock.script:557101063abca8a5e386744e                              
+INFO:bedrock.script:OP_EQUALVERIFY                                        
+INFO:bedrock.script:OP_CHECKSIG                031d5d37523e3e6d3502d20c   30450221009a12be76e56eb0
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:OP_HASH160                                            
+INFO:bedrock.script:557101063abca8a5e386744e                              
+INFO:bedrock.script:OP_EQUALVERIFY                                        031d5d37523e3e6d3502d20c
+INFO:bedrock.script:OP_CHECKSIG                OP_DUP                     30450221009a12be76e56eb0
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:557101063abca8a5e386744e                              031d5d37523e3e6d3502d20c
+INFO:bedrock.script:OP_EQUALVERIFY                                        031d5d37523e3e6d3502d20c
+INFO:bedrock.script:OP_CHECKSIG                OP_HASH160                 30450221009a12be76e56eb0
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:                                                      557101063abca8a5e386744e
+INFO:bedrock.script:OP_EQUALVERIFY                                        031d5d37523e3e6d3502d20c
+INFO:bedrock.script:OP_CHECKSIG                557101063abca8a5e386744e   30450221009a12be76e56eb0
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:                                                      557101063abca8a5e386744e
+INFO:bedrock.script:                                                      557101063abca8a5e386744e
+INFO:bedrock.script:                                                      031d5d37523e3e6d3502d20c
+INFO:bedrock.script:OP_CHECKSIG                OP_EQUALVERIFY             30450221009a12be76e56eb0
+INFO:bedrock.script:------------------------------------------------------------------------------
+INFO:bedrock.script:                                                      031d5d37523e3e6d3502d20c
+INFO:bedrock.script:                           OP_CHECKSIG                30450221009a12be76e56eb0
+DEBUG:bedrock.op:signature is good
+DEBUG:bedrock.script:stack after execution: [b'\x01']
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): test-insight.bitpay.com:443
+DEBUG:urllib3.connectionpool:https://test-insight.bitpay.com:443 "POST /api/tx/send HTTP/1.1" 200 None
+14830db4c175cd37d0ed5f5eb1b4c41d4ddd15561364ed65eb0b9d1e56a76dd5
+```
+
+We receive a wealth of network information from the `urllib3` library underlying `requests` in `services.py`, as well as some a play-by-play of the evaluation of each transaction input's `script_sig` attribute courtesy of `bedrock`. Pass the `--debug` attribute if you'd like more verbose logging about what our wallets are doing behind the scenes.
