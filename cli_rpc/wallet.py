@@ -10,7 +10,8 @@ from bedrock.script import address_to_script_pubkey
 from bedrock.helper import sha256
 from bedrock.hd import HDPrivateKey
 
-from rpc import get_balance, get_unspent, get_transactions, broadcast, export, load_watchonly, get_address_for_outpoint, sat_to_btc, create_raw_transaction, fund_raw_transaction  # FIXME
+from rpc import load_watchonly, sat_to_btc, WalletRPC
+from rpc import WalletRPC
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,11 @@ class Wallet:
 
     @classmethod
     def open(cls):
-        load_watchonly()
         with open(cls.filename, 'r') as f:
             raw_json = f.read()
-            return cls.deserialize(raw_json)
+            wallet = cls.deserialize(raw_json)
+            load_watchonly(wallet.accounts.keys())
+            return wallet
 
     def register_account(self, account_name):
         assert account_name not in self.accounts, 'account already registered'
@@ -69,7 +71,7 @@ class Wallet:
             'change_index': 0,
         }
         self.accounts[account_name] = account
-        load_watchonly()
+        load_watchonly(self.accounts.keys())
         self.bitcoind_export(account_name, True)
         self.bitcoind_export(account_name, False)
         self.save()
@@ -89,7 +91,7 @@ class Wallet:
         descriptor = self.descriptor(account_name, change)
         index = account['change_index'] if change else account['receiving_index']
         export_range = (index, index + self.export_size)
-        export(descriptor, export_range, change)
+        WalletRPC(account_name).export(descriptor, export_range, change)
 
     def derive_key(self, account_name, change, address_index):
         account = self.accounts[account_name]
@@ -137,34 +139,35 @@ class Wallet:
         return key.pub.point.address(testnet=True)
 
     def balance(self, account_name):
-        return get_balance()  # FIXME: pass a 'wallet_name' / 'account_name' variable to rpc ...
+        return WalletRPC(account_name).get_balance()
 
     def unspent(self, account_name):
-        return get_unspent()
+        return WalletRPC(account_name).get_unspent()
 
     def transactions(self, account_name):
-        return get_transactions()
+        return WalletRPC(account_name).get_transactions()
 
     def send(self, account_name, address, amount, fee):
+        rpc = WalletRPC(account_name)
+
         # create unfunded transaction
         tx_ins = []
         tx_outs = [
             {address: sat_to_btc(amount)},
         ]
-        rawtx = create_raw_transaction(tx_ins, tx_outs)
+        rawtx = rpc.create_raw_transaction(tx_ins, tx_outs)
         
         # fund it
         change_address = self.consume_address(account_name, True)
-        fundedtx = fund_raw_transaction(rawtx, change_address)
+        fundedtx = rpc.fund_raw_transaction(rawtx, change_address)
 
         # sign
         tx = Tx.parse(BytesIO(bytes.fromhex(fundedtx)), testnet=True)
         for index, tx_in in enumerate(tx.tx_ins):
-            output_address = get_address_for_outpoint(tx_in.prev_tx.hex(), tx_in.prev_index)
-            print(output_address)
+            output_address = rpc.get_address_for_outpoint(tx_in.prev_tx.hex(), tx_in.prev_index)
             hd_private_key = self.lookup_key(account_name, output_address)
             assert tx.sign_input(index, hd_private_key.private_key)
         
         # broadcast
         rawtx = tx.serialize().hex()
-        return broadcast(rawtx)
+        return rpc.broadcast(rawtx)
