@@ -199,7 +199,6 @@ class Wallet:
         account = self.accounts[account_name]
         account_number = account['account_number']
         change_number = int(change)
-        address_index = account['change_index'] if change else account['receiving_index']
         path_bytes = f"m/44'/1'/{account_number}'/{change_number}/{address_index}".encode()
         return self.master_key.traverse(path_bytes)
     
