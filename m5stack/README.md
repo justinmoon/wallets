@@ -1,28 +1,28 @@
 # m5stack
 
-In this lesson we'll learn all the component pieces involved in building a simple hardware wallet using micropython on your m5stack.
+In this lesson we'll learn all the component pieces required to build a simple hardware wallet using micropython on your m5stack.
 
 ## Install Micropython Firmware
 
-In order to access your plugged-in m5stack from your desktop computer, you'll need to install [one of these drivers](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers). Find your operating system in the table, copy the link in the "Software" column (Link text should start with "Download VCP") and download it.
+In order to access your plugged-in m5stack from your desktop computer, you'll need to install [one of these drivers](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers). Find your operating system in the table, locate the link in the "Software" column (Link text should start with "Download VCP") and click to download it.
 
 To unzip the file to some folder name (`driver` for instance) and run the following (or use a GUI zip utility):
 
 ```
-$ unzip <filename.zip> -d driver
+$ unzip </path/to/filename.zip> -d driver
 ```
 
 Then follow the instructions within the release notes `.txt` file in the extracted directory to install the driver. The release notes aren't particularly good so if you have any issues please post in Slack. A lot of people have trouble with this.
 
 Make sure your virtual environment is activated. It contains packages for working with your m5stack.
 
-Next we need to download and install a micropython firmware to your m5stack. This firmware is just a micropython interpreter, a C program that knows how to run micropython files and a REPL. This is just like the `python3` program on your computer is a C program that can run python3 files. More on the differences between micropython and python3 later ...
+Next we need to download and install a micropython firmware to your m5stack. This firmware is just a micropython interpreter, a C program that knows how to run micropython files and a REPL. This is just like the `python3` program on your computer is a C program that can run python3 files and a python3 REPL. More on the differences between micropython and python3 later ...
 
 ```
 $ wget https://github.com/stepansnigirev/esp32_upy_bitcoin/releases/download/0.0.3/firmware.bin
 ```
 
-Figure out which port your m5stack is running on. It usually starts with `/dev/ttyUSB` on Unix, includes string `COM` on Windows. If nothing shows up there is a problem with your serial driver. Get help in Slack.
+Figure out which port your m5stack is running on. It usually starts with `/dev/cu.SLAB_USBtoUART` on Mac, `/dev/ttyUSB` on Linux, and includes string `COM` on Windows. If nothing shows up there is a problem with your serial driver. Get help in Slack.
 
 ```
 $ python3 -m serial.tools.list_ports
@@ -38,19 +38,22 @@ $ esptool.py --chip esp32 --port <port> --baud 460800 write_flash -z 0x1000 firm
 ```
 
 Notes:
-- Fill in `<port>` in both commands with value from previous step
-- First command erases the m5stack
+- Fill in `<port>` in both commands with value from previous step.
+- First command erases existing (probably Arduino) the m5stack.
+- Second command uploads our micropython firmware you just downloaded with `wget`
 
 ## Hello World
 
-Micropython is a subset of Python. Some of the python3 standard library is present, but much is missing. For example, our familiar `bytes.hex()` doesn't exist in micropython.
+Micropython is a subset of Python. Some of the python3 standard library is present, but much is missing.
 
-But much of it does work. The `asyncio` concurrency library is even there, with support for python's fancy new `async` / `await` syntax. We'll use this to run multiple concurrent routines on our hardware wallet (listen for messages coming from USB wire and button touches at the same time).
+On one hand, our familiar `bytes.hex()` doesn't exist in micropython.
+
+On the other hand . The `asyncio` concurrency library is even there, with support for python's fancy new `async` / `await` syntax. We'll use this to run multiple concurrent routines on our hardware wallet (listen for messages coming from USB wire and button touches at the same time).
 
 To get started we'll use [rshell](https://github.com/dhylands/rshell), which is a modified bash shell that allows you to `cp` files from your desktop to the m5stack, `edit` files on the m5stack, call `repl` to open a python shell in the m5stack, and more. Using the same `<port>` variable as in the previous step:
 
 ```
-$ rshell -p /dev/ttyUSB0
+$ rshell -p <port>
 Using buffer-size of 32
 Connecting to /dev/ttyUSB0 (buffer-size 32)...
 Trying to connect to REPL ... connected
@@ -77,6 +80,8 @@ Type "help()" for more information.
 ```
 
 Now we're in a micropython REPL inside rshell inside our normal shell. WICKED!
+
+To exit the REPL back to rshell you can type `ctrl-x`.
 
 Let's try "Hello, world!"
 
@@ -122,7 +127,7 @@ Plus any modules on the filesystem
 b'1_[\xdbv\xd0x\xc4;\x8a\xc0\x06NJ\x01da+\x1f\xcew\xc8i4[\xfc\x94\xc7X\x94\xed\xd3'
 >>> import time
 >>> time.time()
-618515791  # btw this is wrong. the clock is currently not calibrated correctly!
+618515791  # btw this is wrong. the clock is currently not set correctly!
 ...
 ```
 
@@ -155,15 +160,15 @@ This is great, but if we restart the device it all goes away. There are two way 
 
 To get code to run every time the device is turn on, we can't just enter it into the REPL. We need to put it in a `main.py` file on the device. Micropython attempts to run this file on startup.
 
-To do this we will exit the REPL by pressing `ctrl-x`. (Remember that one!). Now let's use rshell's `edit` command to make a `main.py` file on the device.
+To do this we will exit the REPL by pressing `ctrl-x`. Now let's use rshell's `edit` command to make a `main.py` file on the device.
 
 ```
 /home/justin/dev/teaching/wallets> edit /pyboard/main.py
 ```
 
-Any rshell file operation targeting a `/pyboard` directory will correspond to your m5stack (the first ever micropython device was called "pyboard" and the name stuck).
+Any rshell file operation targeting a `/pyboard` directory will correspond to the root `/` directory on your m5stack (the first micropython device was called "pyboard" and the name stuck).
 
-At this point your default terminal editor application (you can set this by exporting a `$EDITOR` variable in you `~/.bashrc` on unix) should open. It's probably vim or nano, but I belive you can configure it to open GUI editors like sublime ...
+At this point your default terminal editor application (you can set this by exporting a `$EDITOR` variable in you `~/.bashrc` on unix) should open. It's probably vim or nano, but I belive you can configure it to open GUI editors like sublime (LMK if you figure out how) ...
 
 Type the following into your editor and save.
 
@@ -198,13 +203,15 @@ MicroPython v1.11-97-gd821a27b5-dirty on 2019-07-25; ESP32 module with ESP32
 Type "help()" for more information.
 ```
 
-Even if you're program didn't have an error, add a syntax error and try this just to practice debugging.
+Even if your program didn't have an error, add a syntax error and try this just to practice debugging.
 
 ## Serial Communication
 
-Now, let's try to send messages between your m5stack and desktop computer. For this exercise, let's try another (more reliable) way to get code onto your m5stack. The trouble with calling `edit` is that your files will be erased if your m5stack's flash memory is erased (uploading new firmware for instance). It's better to keep a canonical set of files in your git repo so you can't lose them, and _copy_ them onto the m5stack instead of directly writing them on the m5stack where no version control exists.
+Now, let's try to send messages between your m5stack and desktop computer. For this exercise, let's try another (more reliable) way to get code onto your m5stack. The trouble with calling `edit` is that your files will be erased if your m5stack's flash memory is erased (uploading new firmware for instance). It's better to keep a canonical set of files in a git repo on you desktop machine so you can't lose them, and _copy_ them onto the m5stack instead of directly writing them on the m5stack where no version control exists.
 
-Write the following program into an `echo.py` file on in the current directory of your desktop machine (solution files are available in [examples/](./examples)):
+### One-Way Serial Communication (Desktop -> M5Stack)
+
+Write the following program into an `echo.py` file on in the current directory of your desktop machine (solution files are available in [examples/](./examples):
 
 ```
 import time
@@ -225,7 +232,7 @@ while True:
 
 Notes:
 - `m5stack.LCD` is implements a driver for your m5stack's display.
-- We set a color for the foreground and background using `lcd.set_color(color565(...))`. Try fiddling with the values to get different colors.
+- We set a color for the foreground and background using `lcd.set_color(color565(...))`. Try fiddling with the arguments to `color565` to get different colors.
 - Your m5stack uses the "standard input" and "standard output" to communicate with its host machine over the USB wire. Therefore, you can read from the usb wire using `input()`
 - We enter an endless loop which reads from "standard input" and prints to the LCD.
 
@@ -235,9 +242,11 @@ From rshell run the following to copy `echo.py` to your m5stack as `main.py`:
 /home/justin/dev/teaching/wallets> cp echo.py /pyboard/main.py
 ```
 
-If you restart the m5stack you'll notice that the background color did change which means the code at least kind of works, but how can we sent it a message over the USB?
+Upon restarting your m5stack you'll notice that the background color did change which means the code partially works, but how can we sent it a message over the USB?
 
-Once again, rshell can help us here. The `repl` command we've been using just connects over the serial USB port and sends keystrokes to the m5stack. When the `main.py` finishes executing, micropython takes over and opens a REPL. But when `main.py` doesn't finish execution (e.g. our `while True`) loop, you keystrokes will be sent to the micropython program's standard input, accessible using `input()` and other less hacky ways we'll explore later.
+Once again, rshell can help us here. The `repl` command we've been using just connects over the serial USB port and sends keystrokes to the m5stack. When the `main.py` finishes executing, micropython takes over and opens a REPL. But when `main.py` doesn't finish execution (e.g. our `while True` loop), keystrokes will be sent to the micropython program's standard input, accessible using `input()` and other less hacky ways we'll explore later.
+
+Let's try the `repl` command:
 
 ```
 /home/justin/dev/teaching/wallets> repl
@@ -278,22 +287,28 @@ I (430) spi_master: Allocate TX buffer for DMA
 I (430) spi_master: Allocate TX buffer for DMA
 ```
 
-A bunch of debugging output, but no micropython REPL prompt (`>>> `).
+A bunch of debugging output, but no micropython REPL prompt (`>>> `). This makes sense, because our `main.py` should run indefinitely if no errors are encountered.
 
-Try typing 'Hello, world!' into the terminal. It should appear on the display of your m5stack! Pretty impressive, huh?
+Try typing `"Hello, world!"` into the terminal. It should appear on the display of your m5stack! Pretty impressive, huh?
 
-Now see if you can figure out how to send a response back across the USB from micropython to and have it show up in rshell. Let say you entered in "Hello, world!"<enter> in rshell. You could have the m5stack reply "Received 'Hello, world!'"
+### Two-Way Serial Communication
+
+Now see if you can figure out how to send a response back across the USB from micropython to and have it show up in rshell. Let say you entered in "Hello, world!" in rshell. You could have the m5stack reply 'Received "Hello, world!"'
 
 Hint: how do you send strings to "standard output" in normal python?
 
 Answer:
-.
-.
-.
+
+...
+...
+...
+
 (don't cheat)
-.
-.
-.
+
+...
+...
+...
+
 Use the trusty `print` command to send the response back to standard output and the out desktop machine.
 
 Update `echo.py` with the following:
@@ -331,7 +346,7 @@ Let's step back for a second. Our program has a main loop that can only handle m
 
 Once again we need concurrency. There are two options:
 1. threads
-2. asyncio
+2. Asyncio
 
 We'll opt for the second option because it's generally easier to work with.
 
@@ -339,7 +354,7 @@ We'll opt for the second option because it's generally easier to work with.
 
 ### `counter.py`
 
-Let's write a program using asyncio that increments a counter, prints it to the screen, and sleeps for a second. This doesn't require any concurrency yet. But once we have it working we'll add another task that does the same thing but decrements a counter. Then we'll have 2 separate tasks running concurrently.
+Let's write a program using asyncio that increments a counter, prints it to the screen, and sleeps for a second. This doesn't require any concurrency yet. But once we have it working we'll add another concurrent task that does the same thing but decrements a counter, demonstrating 2 separate tasks running concurrently.
 
 Enter the following code into a `counter.py` file on your desktop machine. Copy it over to the m5stack and restart (I'm going to stop telling you how to do this now. If you forget just scroll up).
 
@@ -355,7 +370,7 @@ lcd.erase()
 async def increment():
     counter = 0
     while True:
-        lcd.print('increment: {}'.format(counter)) 
+        lcd.print('Increment: {}'.format(counter)) 
         counter += 1
         await uasyncio.sleep(1)
 
@@ -373,10 +388,10 @@ Notes:
     - [High-level description of what it is](https://hackernoon.com/a-simple-introduction-to-pythons-asyncio-595d9c9ecf8c)
     - [30 minute YouTube tutorial covering a very similar example to this one](https://www.youtube.com/watch?v=BI0asZuqFXM)
     - [Exhaustive tutorial of the micropython asyncio library](https://github.com/peterhinch/micropython-async/blob/master/TUTORIAL.md)
-- Asyncio implements a "event loop". You can put tasks into this loop using `loop.create_task`. These tasks must be "coroutines" -- functions which can suspend execution when they have nothing to do (e.g. waiting for button press). Asyncio's event loop is able to jump between coroutings when they do have something to do.
-- Coroutines can be defined by creating a function containing `async def` declaration. Coroutines created in this manner can suspend execution by calling other coroutines using `await coroutine()`. In our case we repeatedly call `await uasyncio.sleep(1)` to sleep for 1 second. This simulates how our hardware wallet will wait for button presses and messages over serial port.
+- Asyncio implements a "event loop". You can put tasks into this loop using `loop.create_task`. These tasks must be "coroutines" -- functions which can suspend execution when they have nothing to do (e.g. waiting for button press). Asyncio's event loop is able to jump between coroutines when they do have something to do.
+- Coroutines can be defined by creating a function containing `async def` declaration. Coroutines created in this manner can suspend execution by calling other coroutines using `await coroutine()`. In our case, every iteration of the loop we suspend execution by calling `await uasyncio.sleep(1)` to sleep for 1 second. This simulates how our hardware wallet will wait for button presses and messages over serial port.
 
-You should see "Increment: i" lines printed out every second, where `i` increases by 1 every time.
+You should see "Increment: i" lines printed out every second, where `i` increases by 1 with every message.
 
 See if you can figure out how to write a `decrement` function that does the same thing but subtracts instead of adding, and to run them both at the same time.
 
@@ -388,7 +403,7 @@ Answer:
 async def decrement():
     counter = 0
     while True:
-        lcd.print('decrement: {}'.format(counter)) 
+        lcd.print('Decrement: {}'.format(counter)) 
         counter -= 1
         await uasyncio.sleep(1)
 
@@ -456,7 +471,7 @@ Notes:
     - `.release_func` for when the button is released.
     - `.double_func` for when the button is double-tapped.
     - `.long_func` for when the button is long-pressed (held for 1 second).
-- Try experimenting with a few of these other callback function.
+- Try experimenting with these other callback functions.
 - `release_button` is the only button callback we use. It takes a `machine.Pin` instance, compares it with global variables `A`, `B`, and `C` which represent the pins for each of our 3 buttons, and prints a statement if a matching pin was passed as an argument
 
 ### `io.py`
@@ -492,13 +507,13 @@ if __name__ == '__main__':
     main()
 ```
 
-If you re-upload the file and restart, you should be able to whatever you type into the rshell REPL should be echoed to the screen.
+If you re-upload the file and restart, whatever you type into the rshell REPL should be echoed to the screen.
 
 Notes:
-- `uasyncio.StreamReader` and `uasyncio.StreamWriter` create a class with a coroutine `.readline()` and `.awrite(<bytes>)` methods. 
-- Our `serial_manager` coroutine awaits these methods to suspend execution while reading and writing messages.
+- `uasyncio.StreamReader` and `uasyncio.StreamWriter` create a class with a coroutine `.readline()` and `.awrite(<bytes>)` methods, respectively.
+- Our `serial_manager` coroutine `await`s these methods to suspend execution while reading and writing messages.
 - `.readline()` returns bytes. `.awrite()` accepts a string as argument. A little weird but we make it work.
-- `sreader.readline()` is a coroutine (python generator, specifically). So we can't call `.decode()` on it directly. We do on the next line after a value has been yielded from the generator.
+- `sreader.readline()` is a coroutine (python generator, specifically). Therefore, we can't call `.decode()` on it directly. We do on the next line after a value has been yielded from the generator.
 - Each `msg` has a `\n` newline character on the end. We strip it off when printing because `lcd.print` already fills in newline, but keep it when constructing the response because we want a newline to be inserted in for responses in rshell `repl`.
 
 ### `io_and_buttons.py`
@@ -569,7 +584,7 @@ This type of logic is how we'll structure the business logic of our hardware wal
 
 ### `cli.py`
 
-We've been using rshell's `repl` command so far to communicate with out device's serial port. But we'll need a python CLI to build a convenient wallet. Let's prototype that as well. Enter the following into a `cli.py` on your desktop machine: 
+We've been using rshell's `repl` command so far to communicate with out device's serial port. But we'll need a python CLI to build a bitcoin wallet. Let's prototype that as well. Enter the following into a `cli.py` on your desktop machine: 
 
 ```
 import sys
@@ -614,10 +629,10 @@ Serial: number go up
 Everything after `cli.py` should show up on the display of your m5stack!
 
 Notes:
-- rshell is uses PySerial for everything, just like this
+- Under the hood rshell uses PySerial for serial communicate, just like this.
 - `find_port` searches for a device matching the Silicon Labs driver we installed first thing in this tutorial. If fails if it finds zero or more than 1. I haven't tested this on Mac or Windows so let me know if it fails!
 - `send_and_receive`:
-    - Declares a connection to the port returned by `find_port` at a specified `baudrate` -- this is the rate at which bits are transmitted betwee host and and m5stack. If the baudrate must be the same on both sides of they can't understand each other.
+    - Declares a connection to the port returned by `find_port` at a specified `baudrate` -- this is the rate at which bits are transmitted between host and and m5stack. The baudrate must be the same on both sides or they won't understand each other.
     - Encodes `msg`, appends newline character (`reader.readline()` on m5stack reads until it hits a newline), and sends across the serial port to the m5stack.
     - Reads until it hits a newline, strips the newline, decodes to string and returns it.
 - `main` turns command line arguments into one space-separated string and calls `send_and_receive` with it.
@@ -629,8 +644,8 @@ A hardware wallet needs one last thing: the ability to write secrets to disk (ri
 ### `disk.py`
 
 The following snippet will:
-- First run: save the number `0` to the m5stack filesystem and prints it
-- Subsequent runs: load the number, print it, increment it, and save it
+- First run: save the number `0` to the m5stack filesystem and print it.
+- Subsequent runs: load the number, increment it, print it, and save it.
 
 Type the following into a `disk.py` file.
 
@@ -669,10 +684,7 @@ if __name__ == '__main__':
     main()
 ```
 
-Just re-run the m5stack and watch the counter rise!
-
-Notes:
-- This is all exactly how it would work in regular python
+Upload and restart your m5stack a few times and watch the number go up!
 
 ### `sd.py`
 
@@ -700,16 +712,19 @@ def save(counter):
         f.write(str(counter))
 
 def main():
-    # mount
+    # mount SD card to filesystem
     sd = SDCard()
     os.mount(sd, sd_dir)
+    
     # load and increment counter if counter file exists
     if file_name in os.listdir(sd_dir):
         counter = load()
         counter += 1
-    # initialize if it doesn't
+        
+    # initialize if counter file doesn't exist
     else:
         counter = 0
+        
     # save counter to sd card and print it's value
     save(counter)
     lcd.print("Counter: {}".format(counter))
@@ -719,9 +734,9 @@ if __name__ == '__main__':
 
 ```
 
-This program should produce the same behavior on you m5stack as the previous one did, but it's saving to you sd card (which isn't re-written when flashing new firmware, and which could be used to transfer data between m5stack and desktop machine) instead of the m5stack filesystem.
+This program should produce the same behavior on you m5stack as the previous one did, but it's saving to your SD card (which isn't re-written when flashing new firmware, and which could be used to transfer data between m5stack and desktop machine) instead of the m5stack filesystem.
 
 Notes:
-- The only nuance here is that we must mount the SD card to our filesystem with `os.mount(SDCard(), path)` to make it accessible to python IO operations like `open()`.
+- The only nuance here is that we must mount the SD card to our filesystem with `os.mount(SDCard(), path)` to make it accessible to python IO operations like `open(path + ...)`.
 
-That's in! Now we're ready to write a hardware wallet.
+That's all, folks! Now we're ready to write a hardware wallet.
