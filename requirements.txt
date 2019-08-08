@@ -3,3 +3,8 @@ pytest
 requests
 python-bitcoinrpc
 pbkdf2
+
+# m5stack
+esptool
+pyserial
+rshell
