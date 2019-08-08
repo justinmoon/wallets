@@ -6,18 +6,32 @@ In this lesson we'll learn all the component pieces involved in building a hardw
 
 (TODO: install silicon labs driver)
 
+In order to access your plugged-in m5stack from your desktop computer, you'll need to install [one of these drivers](https://www.silabs.com/products/development-tools/software/usb-to-uart-bridge-vcp-drivers). Find your operating system in the table, copy the link in the "Software" column (Link text should start with "Download VCP") and download it with the following command:
+
+```
+$ wget <link>
+```
+
+To unzip the file to some folder name (`driver` for instance) and run the following (or use a GUI zip utility):
+
+```
+$ unzip <filename.zip> -d driver
+```
+
+Then follow the instructions within the release notes `.txt` file in the extracted directory to install the driver. The release notes aren't particularly good so if you have any issues please post in Slack. A lot of people have trouble with this.
+
 Make sure your virtual environment is activated. It contains packages for working with your m5stack.
 
-Download the firmware (TODO: upload. TODO: how can i have this always fetch the latest release?). It's just a modded version of micropython with modules for working with bitcoin and m5stack display / buttons.
+Next we need to download and install a micropython firmware to your m5stack. This firmware is just a micropython interpreter, a C program that knows how to run micropython files. This is just like the `python3` program on your computer is a C program that can run python3 files. More on the differences between micropython and python3 later ...
 
 ```
-wget <TODO>
+$ wget https://github.com/stepansnigirev/esp32_upy_bitcoin/releases/download/0.0.3/firmware.bin
 ```
 
-Figure out which port your m5stack is running on. It usually starts with `/dev/ttyUSB` on Unix, includes strin `COM` on Windows. If nothing shows up there is a problem with your serial driver. Get help in Slack.
+Figure out which port your m5stack is running on. It usually starts with `/dev/ttyUSB` on Unix, includes string `COM` on Windows. If nothing shows up there is a problem with your serial driver. Get help in Slack.
 
 ```
-python3 -m serial.tools.list_ports
+$ python3 -m serial.tools.list_ports
 /dev/ttyS0          
 /dev/ttyUSB0  # this one
 ```
@@ -25,13 +39,15 @@ python3 -m serial.tools.list_ports
 Flash firmware:
 
 ```
-esptool.py --chip esp32 --port <port> --baud 460800 erase_flash
-esptool.py --chip esp32 --port <port> --baud 460800 write_flash -z 0x1000 firmware.bin
-``
+$ esptool.py --chip esp32 --port <port> --baud 460800 erase_flash
+$ esptool.py --chip esp32 --port <port> --baud 460800 write_flash -z 0x1000 firmware.bin
+```
+
+Notes:
+- Fill in `<port>` in both commands with value from previous step
+- First command erases the m5stack
 
 ## Hello World
-
-The firmware we uploaded in the previous step is just a micropython interpreter, a C program that knows how to run micropython files. This is just like the `python3` program on your computer is a C program that can run python3 files.
 
 Micropython is a subset of Python. Some of the python3 standard library is present, but much is missing. For example, our familiar `bytes.hex()` doesn't exist in micropython.
 
@@ -50,7 +66,6 @@ Setting time ... Aug 07, 2019 17:48:04
 Evaluating board_name ... pyboard
 Retrieving time epoch ... Jan 01, 2000
 Welcome to rshell. Use Control-D (or the exit command) to exit rshell.
-# FIXME: edit this prompt?
 /home/justin/dev/teaching/wallets> 
 ```
 
