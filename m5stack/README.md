@@ -589,27 +589,30 @@ lcd = LCD()
 lcd.set_font(fonts.tt32)
 lcd.erase()
 
-filename = 'file.txt'
+file_name = 'counter.txt'
 
 def load():
-    with open(filename, 'r') as f:
-        counter = int(f.read())
-        lcd.print('Counter: {}'.format(counter))
-        counter += 1
-        save(counter=counter)
+    with open(file_name, 'r') as f:
+        return int(f.read())
 
-def save(counter=None):
-    if counter is None:
-        counter = 0
-        lcd.print('Initialized')
-    with open(filename, 'w') as f:
+def save(counter):
+    with open(file_name, 'w') as f:
         f.write(str(counter))
-        
 
-if filename in os.listdir('/'):
-    load()
-else:
-    save()
+def main():
+    # load and increment counter if counter file exists
+    if file_name in os.listdir():
+        counter = load()
+        counter += 1
+    # initialize if it doesn't
+    else:
+        counter = 0
+    # save counter to sd card and print it's value
+    save(counter)
+    lcd.print("Counter: {}".format(counter))
+
+if __name__ == '__main__':
+    main()
 ```
 
 Just re-run the m5stack and watch the counter rise!
@@ -618,40 +621,45 @@ To do the same with an sd card, place an SD card into your m5stack, enter this i
 
 ```
 import os
-import machine
 
-from m5stack import LCD, fonts
+from m5stack import LCD, fonts, SDCard
 
 lcd = LCD()
 lcd.set_font(fonts.tt32)
 lcd.erase()
 
-filename = 'file.txt'
-
-def mount():
-    sd = machine.SDCard(slot=3, mosi=23, miso=19, sck=18, cs=4)
-    os.mount(sd, '/sd')
+file_name = 'counter.txt'
+sd_dir = '/sd'
+file_path = sd_dir + '/' + file_name
 
 def load():
-    with open('/sd/' + filename, 'r') as f:
-        counter = int(f.read())
-        counter += 1
-        save(counter=counter)
-        print('loaded', counter)
+    with open(file_path, 'r') as f:
+        return int(f.read())
 
-def save(counter=None):
-    if counter is None:
-        counter = 0
-    with open('/sd/' + filename, 'w') as f:
+def save(counter):
+    with open(file_path, 'w') as f:
         f.write(str(counter))
-        print('saved', counter)
 
-mount()
+def main():
+    # mount
+    sd = SDCard()
+    os.mount(sd, sd_dir)
+    # load and increment counter if counter file exists
+    if file_name in os.listdir(sd_dir):
+        counter = load()
+        counter += 1
+    # initialize if it doesn't
+    else:
+        counter = 0
+    # save counter to sd card and print it's value
+    save(counter)
+    lcd.print("Counter: {}".format(counter))
 
-if filename in os.listdir('/sd'):
-    load()
-else:
-    save()
+if __name__ == '__main__':
+    main()
+
 ```
 
-For some reason the SD card works, but it bricks the display so we can only `print`. But if you run from the rshell `repl` you see that the counter increments every time. I'll try to fix this shortly ...
+This program should produce the same behavior on you m5stack as the previous one did, but it's saving to you sd card (which isn't re-written when flashing new firmware, and which could be used to transfer data between m5stack and desktop machine) instead of the m5stack filesystem.
+
+That's in! Now we're ready to write a hardware wallet.
