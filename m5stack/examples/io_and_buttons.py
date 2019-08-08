@@ -35,9 +35,9 @@ async def serial_manager():
     while True:
         msg = await sreader.readline()
         msg = msg.decode()
+        lcd.print(msg.strip('\n'))
         res = 'Serial: ' + msg
         await swriter.awrite(res)
-        lcd.print(msg.strip('\n'))
 
 def main():
     loop = uasyncio.get_event_loop()

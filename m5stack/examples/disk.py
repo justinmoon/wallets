@@ -1,6 +1,6 @@
 import os
 
-from m5stack import LCD, fonts, SDCard
+from m5stack import LCD, fonts
 
 lcd = LCD()
 lcd.set_font(fonts.tt32)

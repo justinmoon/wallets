@@ -11,9 +11,10 @@ async def serial_manager():
     swriter = uasyncio.StreamWriter(stdout, {})  # TODO: what is this second param?
     while True:
         msg = await sreader.readline()
-        res = 'Serial:' + msg.decode().strip()
+        msg = msg.decode()
+        lcd.print(msg.strip('\n'))
+        res = 'Serial: ' + msg
         await swriter.awrite(res)
-        lcd.print(res)
 
 def main():
     loop = uasyncio.get_event_loop()
