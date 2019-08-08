@@ -9,14 +9,14 @@ lcd.erase()
 async def decrement():
     counter = 0
     while True:
-        lcd.print('decrement: {}'.format(counter)) 
+        lcd.print('Decrement: {}'.format(counter)) 
         counter -= 1
         await uasyncio.sleep(1)
 
 async def increment():
     counter = 0
     while True:
-        lcd.print('increment: {}'.format(counter)) 
+        lcd.print('Increment: {}'.format(counter)) 
         counter += 1
         await uasyncio.sleep(1)
 

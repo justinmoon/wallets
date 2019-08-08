@@ -19,16 +19,19 @@ def save(counter):
         f.write(str(counter))
 
 def main():
-    # mount SD card to /sd
+    # mount SD card to filesystem
     sd = SDCard()
     os.mount(sd, sd_dir)
+    
     # load and increment counter if counter file exists
     if file_name in os.listdir(sd_dir):
         counter = load()
         counter += 1
-    # initialize if it doesn't
+        
+    # initialize if counter file doesn't exist
     else:
         counter = 0
+        
     # save counter to sd card and print it's value
     save(counter)
     lcd.print("Counter: {}".format(counter))
