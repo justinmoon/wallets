@@ -89,6 +89,12 @@ def parse_args():
         if not hasattr(args, 'wallet'):
             args.account = 'default'
 
+        # FIXME: doesn't work without this
+        # perhaps delete previous thing and check against "default wallet" list
+        # including create_command, register_command, etc
+        elif args.func == register_command:
+            args.account = 'default'
+
         # if there's just 1 account we can safely guess it
         elif len(args.wallet.accounts) == 1:
             args.account = list(args.wallet.accounts.keys())[0]

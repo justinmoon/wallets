@@ -1,5 +1,4 @@
 import json
-import logging
 
 from os.path import isfile
 from io import BytesIO
@@ -10,10 +9,7 @@ from bedrock.script import address_to_script_pubkey
 from bedrock.helper import sha256
 from bedrock.hd import HDPrivateKey
 
-from rpc import load_watchonly, sat_to_btc, WalletRPC
-from rpc import WalletRPC
-
-logger = logging.getLogger(__name__)
+from rpc_final import WalletRPC, sat_to_btc
 
 class Wallet:
 
@@ -59,7 +55,8 @@ class Wallet:
         with open(cls.filename, 'r') as f:
             raw_json = f.read()
             wallet = cls.deserialize(raw_json)
-            load_watchonly(wallet.accounts.keys())
+            for account_name in wallet.accounts.keys():
+                WalletRPC('').load_wallet(account_name)
             return wallet
 
     def register_account(self, account_name):
@@ -71,7 +68,8 @@ class Wallet:
             'change_index': 0,
         }
         self.accounts[account_name] = account
-        load_watchonly(self.accounts.keys())
+        # create watch-only Bitcoin Core wallet and export first chunk of addresses
+        WalletRPC('').create_watchonly_wallet(account_name)
         self.bitcoind_export(account_name, True)
         self.bitcoind_export(account_name, False)
         self.save()
@@ -95,6 +93,7 @@ class Wallet:
         account = self.accounts[account_name]
         account_number = account['account_number']
         change_number = int(change)
+        address_index = account['change_index'] if change else account['receiving_index']
         path_bytes = f"m/44'/1'/{account_number}'/{change_number}/{address_index}".encode()
         return self.master_key.traverse(path_bytes)
 
