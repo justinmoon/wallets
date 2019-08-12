@@ -85,10 +85,10 @@ Note: the command returns JSON. That's because under the hood `bitcoin-cli` is s
 
 ## Set an alias
 
-In order to query our "tutorial" testnet wallet's balance, we need to type the long command `tutorial getbalance`. That's cumbersome. Let's create a bash alias for the command: 
+In order to query our "tutorial" testnet wallet's balance, we need to type the long command `bitcoin-cli -testnet -rpcwallet=tutorial getbalance`. That's cumbersome. Let's create a bash alias for the command: 
 
 ```
-alias tutorial="tutorial"
+alias tutorial="bitcoin-cli -testnet -rpcwallet=tutorial getbalance"
 ```
 
 Now we just have to type `tutorial getbalance`. But remember: if you reopen your terminal you'll have to redefine this alias. If you want aliases like this to be permanent, stick it in your `~/.bashrc`.
