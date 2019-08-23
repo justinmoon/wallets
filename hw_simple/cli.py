@@ -2,12 +2,11 @@ import argparse
 import logging
 
 from pprint import pprint
-from wallet_final import Wallet
+from wallet import Wallet
 
 def create_command(args):
-    mnemonic, wallet = Wallet.create(args.account)
+    wallet = Wallet.create(args.account)
     print("wallet created. here is your mnemonic.")
-    print(mnemonic)
     address = wallet.consume_address(args.account, False)
     print("your first receiving address:", address)
 

@@ -1,6 +1,7 @@
 import os
 import json
 import uasyncio
+from asyn import Event
 from binascii import unhexlify, hexlify
 from io import BytesIO
 from m5stack import LCD, fonts, color565, SDCard
@@ -24,6 +25,11 @@ C_BUTTON = Pushbutton(C_PIN)
 lcd = LCD()
 lcd.set_font(fonts.tt24)
 lcd.erase()
+
+# synchronization primitives
+SIGN_IT = Event()
+DONT_SIGN_IT = Event()
+
 
 # TODO: I need a router class that keeps track of history, can go "back"
 class Screen:
@@ -86,6 +92,7 @@ class MnemonicScreen(Screen):
         self.on_verify()
 
     def c_release(self):
+        print('verify')
         self.on_verify()
     
     def render(self):
@@ -118,7 +125,7 @@ class MnemonicScreen(Screen):
 
 def seed_rng():
     from urandom import seed
-    seed(888)
+    seed(999)
 
 def title(s):
     # calculations
@@ -159,6 +166,70 @@ def main():
         mnemonic = secure_mnemonic()
         MnemonicScreen(mnemonic).visit()
 
+class ConfirmOutputScreen(Screen):
+
+    def __init__(self, tx, index):
+        self.tx = tx
+        self.index = index
+
+    def a_release(self):
+        DONT_SIGN_IT.set()
+
+    def b_release(self):
+        pass
+
+    def c_release(self):
+        if len(self.tx.tx_outs) > self.index + 1:
+            ConfirmOutputScreen(self.tx, self.index + 1).visit()
+        else:
+            SIGN_IT.set()
+
+    def render(self):
+        lcd.erase()
+
+        title("Confirm Output")
+
+        lcd.set_font(fonts.tt24)
+        tx_out = self.tx.tx_outs[self.index]
+        print('cmds', tx_out.script_pubkey.cmds)
+        address = tx_out.script_pubkey.address(testnet=True)
+        amount = tx_out.amount
+        msg = "Are you sure you want to send {} satoshis to {}?".format(amount, address)
+        lcd.print(msg)
+
+async def sign_tx(tx, input_meta, output_meta):
+    print(input_meta)
+    assert len(tx.tx_outs) == len(output_meta)
+    assert len(tx.tx_ins) == len(input_meta)
+
+    ConfirmOutputScreen(tx, 0).visit()
+
+    while True:
+        if SIGN_IT.is_set():
+            lcd.print("SIGN IT")
+            SIGN_IT.clear()
+            break
+        if DONT_SIGN_IT.is_set():
+            lcd.print("DON'T SIGN IT")
+            DONT_SIGN_IT.clear()
+            break
+        print('waiting')
+        await uasyncio.sleep(1)
+
+    master_key = load_key()
+    for i, meta in enumerate(input_meta):
+        script_hex = meta['script_pubkey']
+        script_pubkey = Script.parse(BytesIO(unhexlify(script_hex)))
+        receiving_path = meta['derivation_path'].encode()
+        print(receiving_path)
+        receiving_key = master_key.traverse(receiving_path).private_key
+        tx.sign_input_p2pkh(i, receiving_key, script_pubkey)
+
+    res = json.dumps({
+        "tx": hexlify(tx.serialize()),
+    })
+    return res
+
 async def serial_manager():
     sreader = uasyncio.StreamReader(stdin)
     swriter = uasyncio.StreamWriter(stdout, {})  # TODO: what is this second param?
@@ -177,36 +248,24 @@ async def serial_manager():
 
         if msg['command'] == 'xpub':
             master_key = load_key()
-            account_path = b"m/84'/1'"
-            account_key = master_key.traverse(account_path)
-            account_xpub = account_key.xpub()
-            res = json.dumps({
-                "xpub": account_xpub,
-            })
+            derivation_path = msg['derivation_path'].encode()
+            print(derivation_path)
+            key = master_key.traverse(derivation_path)
+            xpub = key.xpub()
+            res = json.dumps({"xpub": xpub})
             await swriter.awrite(res+'\n')
 
         if msg['command'] == 'address':
             master_key = load_key()
-            receiving_path = b"m/84'/1'/0/0"
-            receiving_key = master_key.traverse(receiving_path)
-            receiving_address = receiving_key.address()
-            res = json.dumps({
-                "address": receiving_address,
-            })
+            derivation_path = msg['derivation_path'].encode()
+            key = master_key.traverse(derivation_path)
+            address = key.address()
+            res = json.dumps({"address": address})
             await swriter.awrite(res+'\n')
 
         if msg['command'] == 'sign':
             tx = Tx.parse(BytesIO(unhexlify(msg['tx'])), testnet=True)
-            lcd.print(tx.id().decode())
-            script_hex = msg['meta'][0]['script_pubkey']
-            script_pubkey = Script.parse(BytesIO(unhexlify(script_hex)))
-            master_key = load_key()
-            receiving_path = b"m/84'/1'/0/0"
-            receiving_key = master_key.traverse(receiving_path).private_key
-            tx.sign_input_p2pkh(0, receiving_key, script_pubkey)
-            res = json.dumps({
-                "tx": hexlify(tx.serialize()),
-            })
+            res = await sign_tx(tx, msg['input_meta'], msg['output_meta'])
             await swriter.awrite(res+'\n')
 
 if __name__ == '__main__':

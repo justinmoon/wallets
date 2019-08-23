@@ -1,7 +1,11 @@
 import sys
 import json
+
 from serial import Serial
 from serial.tools import list_ports
+
+from rpc import WalletRPC, sat_to_btc
+from bedrock.helper import encode_varstr
 
 def find_port():
     '''figure out which port to connect to'''
@@ -28,45 +32,19 @@ def send_and_recv(msg):
             print('bad msg', raw)
             continue
 
-def xpub():
-    msg = json.dumps({'command': 'xpub'})
-    print(send_and_recv(msg))
+def xpub(derivation_path):
+    msg = json.dumps({'command': 'xpub', 'derivation_path': derivation_path})
+    return send_and_recv(msg)['xpub']
 
 def address():
     msg = json.dumps({'command': 'address'})
-    print(send_and_recv(msg))
+    return send_and_recv(msg)['xpub']
 
-def sign():
-    address = '2N9dGmuuvGnNEWKYbpjxHruYuKvBPQzsRyq'
-    amount = 1000
-
-    from rpc import WalletRPC, sat_to_btc
-    rpc = WalletRPC('hw_simple')
-
-    # create unfunded transaction
-    tx_ins = []
-    tx_outs = [
-        {address: sat_to_btc(amount)},
-    ]
-    rawtx = rpc.create_raw_transaction(tx_ins, tx_outs)
-
-    # fund it
-    change_address = 'n49fcB6UxepXvow8r7Dt19J9MHrZWwqHpd'
-    fundedtx = rpc.fund_raw_transaction(rawtx, change_address)
-
-    decoded = rpc.rpc().decoderawtransaction(fundedtx)
-    tx_id = decoded['vin'][0]['txid']
-    tx_index = decoded['vin'][0]['vout']
-
-    tx_obj = rpc.rpc().getrawtransaction(tx_id, True)
-    from bedrock.helper import encode_varstr
-    script_pubkey = encode_varstr(bytes.fromhex(tx_obj['vout'][tx_index]['scriptPubKey']['hex'])).hex()
-    print(script_pubkey)
-
-    meta = [{'script_pubkey': script_pubkey}]
-    msg = json.dumps({'command': 'sign', 'tx': fundedtx, 'meta': meta})
+def sign(tx, input_meta, output_meta):
+    msg = json.dumps({'command': 'sign', 'tx': tx, 'input_meta': input_meta,
+                      'output_meta': output_meta})
     res = send_and_recv(msg)
-    print(rpc.broadcast(res['tx']))
+    return res['tx']
 
 if __name__ == '__main__':
     sign()
