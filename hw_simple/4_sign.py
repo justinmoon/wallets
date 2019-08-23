@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import uasyncio
 from asyn import Event
 from binascii import unhexlify, hexlify
@@ -30,9 +31,72 @@ lcd.erase()
 SIGN_IT = Event()
 DONT_SIGN_IT = Event()
 
+def title(text):
+    # calculations
+    text_width = fonts.tt32.get_width(text)
+    padding_x = (lcd.width - text_width) // 2
+    padding_y = 20
+
+    # configure lcd
+    lcd.set_font(fonts.tt32)
+    lcd.set_pos(padding_x, padding_y)
+
+    # print
+    lcd.print(text)
+
+def alert(text):
+    # calculation
+    lcd.set_font(fonts.tt32)
+    text_width = fonts.tt32.get_width(text)
+    padding_x = (lcd.width - text_width) // 2
+    text_height = fonts.tt32.height()
+    padding_y = (lcd.height - text_height) // 2
+    lcd.set_pos(padding_x, padding_y)
+
+    # print
+    lcd.print(text)
+
+def body(text):
+    lcd.set_font(fonts.tt24)
+    lcd.set_pos(0, 60)
+    lcd.print(text)
+
+def label_buttons(label_a, label_b, label_c):
+    # variables
+    lcd.set_font(fonts.tt14)
+    white = color565(255, 255, 255)
+    padding_y = 5
+    box_height = lcd._font.height() + 2 * padding_y
+    line_height = lcd.height - box_height
+    lcd.set_pos(0, line_height)
+
+    # draw horizontal line
+    for x in range(lcd.width):
+        lcd.pixel(x, lcd._y, white)
+
+    # draw vertical line
+    step = lcd.width // 3
+    for factor in range(1, 3):
+        for y in range(line_height, lcd.height):
+            lcd.pixel(step * factor, y, white)
+
+    # write labels
+    for i, label in enumerate([label_a, label_b, label_c]):
+        padding_x = (lcd.width // 3 - lcd._font.get_width(label)) // 2
+        lcd.set_pos(i*step + padding_x, lcd.height - 20)
+        lcd.print(label)
 
 # TODO: I need a router class that keeps track of history, can go "back"
 class Screen:
+
+    def a_release(self):
+        pass
+
+    def b_release(self):
+        pass
+
+    def c_release(self):
+        pass
 
     def visit(self):
         A_BUTTON.release_func(self.a_release)
@@ -50,29 +114,33 @@ class TraverseScreen(Screen):
     def a_release(self):
         '''decrement address index'''
         if self.address_index != 0:
-            new_screen = TraverseScreen(self.master_key, self.address_index - 1, self.address_type)
-            route(new_screen)
+            TraverseScreen(self.master_key, self.address_index - 1, self.address_type).visit()
 
     def b_release(self):
         '''flip address type'''
         address_type = 'bech32' if self.address_type == 'legacy' else 'legacy'
-        new_screen = TraverseScreen(self.master_key, self.address_index, address_type)
-        route(new_screen)
+        TraverseScreen(self.master_key, self.address_index, address_type).visit()
 
     def c_release(self):
         '''increment address index'''
-        new_screen = TraverseScreen(self.master_key, self.address_index + 1, self.address_type)
-        route(new_screen)
+        TraverseScreen(self.master_key, self.address_index + 1, self.address_type).visit()
     
     def render(self):
-        # FIXME: change
-        path = "m/84'/1'/0'/{}".format(self.address_index).encode()
+        # calculate address and derivation path
+        path = "m/44'/1'/0'/{}".format(self.address_index).encode()
         key = self.master_key.traverse(path)
         address = key.address() if self.address_type == 'legacy' else key.bech32_address()
+
+        # print
         lcd.erase()
+        lcd.set_font(fonts.tt24)
         lcd.set_pos(20, 20)
         lcd.print(path.decode())
         lcd.print(address)
+
+        a = 'prev' if self.address_index > 0 else ''
+        b = 'segwit' if self.address_type == 'legacy' else 'legacy'
+        label_buttons(a, b, 'next')
 
 class MnemonicScreen(Screen):
 
@@ -122,22 +190,31 @@ class MnemonicScreen(Screen):
         for word in labeled[words_per_col:]:
             lcd.print(word)
 
+class HomeScreen(Screen):
+
+    def render(self):
+        lcd.erase()
+        title("Home")
+
+class SigningComplete(Screen):
+
+    def render(self):
+        lcd.erase()
+        alert("Transaction signed")
+        time.sleep(3)
+        HomeScreen().visit()
+
+class SigningCancelled(Screen):
+
+    def render(self):
+        lcd.erase()
+        alert("Aborted")
+        time.sleep(3)
+        HomeScreen().visit()
 
 def seed_rng():
     from urandom import seed
     seed(999)
-
-def title(s):
-    # calculations
-    sw = fonts.tt32.get_width(s)
-    padding = (lcd.width - sw) // 2
-
-    # configure lcd
-    lcd.set_font(fonts.tt32)
-    lcd.set_pos(padding, 20)
-
-    # print
-    lcd.print(s)
 
 def load_key():
     with open('/sd/key.txt', 'rb') as f:
@@ -168,21 +245,27 @@ def main():
 
 class ConfirmOutputScreen(Screen):
 
-    def __init__(self, tx, index):
+    def __init__(self, tx, index, output_meta):
         self.tx = tx
         self.index = index
+        self.output_meta = output_meta
 
     def a_release(self):
+        print("don't sign")
         DONT_SIGN_IT.set()
+        SigningCancelled().visit()
 
     def b_release(self):
         pass
 
     def c_release(self):
+        # confirm remaining outputs
         if len(self.tx.tx_outs) > self.index + 1:
-            ConfirmOutputScreen(self.tx, self.index + 1).visit()
+            ConfirmOutputScreen(self.tx, self.index + 1, self.output_meta).visit()
+        # done confirming. sign it.
         else:
             SIGN_IT.set()
+            SigningComplete().visit()
 
     def render(self):
         lcd.erase()
@@ -194,26 +277,25 @@ class ConfirmOutputScreen(Screen):
         print('cmds', tx_out.script_pubkey.cmds)
         address = tx_out.script_pubkey.address(testnet=True)
         amount = tx_out.amount
-        msg = "Are you sure you want to send {} satoshis to {}?".format(amount, address)
-        lcd.print(msg)
+        change_str = " (change)" if self.output_meta[self.index]['change'] else ''
+        msg = "Are you sure you want to send {} satoshis to {}{}?".format(amount, address, change_str)
+        body(msg)
+
+        label_buttons("no", "", "yes")
 
 async def sign_tx(tx, input_meta, output_meta):
-    print(input_meta)
     assert len(tx.tx_outs) == len(output_meta)
     assert len(tx.tx_ins) == len(input_meta)
 
-    ConfirmOutputScreen(tx, 0).visit()
+    ConfirmOutputScreen(tx, 0, output_meta).visit()
 
     while True:
         if SIGN_IT.is_set():
-            lcd.print("SIGN IT")
             SIGN_IT.clear()
             break
         if DONT_SIGN_IT.is_set():
-            lcd.print("DON'T SIGN IT")
             DONT_SIGN_IT.clear()
-            break
-        print('waiting')
+            return json.dumps({"error": "cancelled by user"})
         await uasyncio.sleep(1)
 
     master_key = load_key()
@@ -225,10 +307,7 @@ async def sign_tx(tx, input_meta, output_meta):
         receiving_key = master_key.traverse(receiving_path).private_key
         tx.sign_input_p2pkh(i, receiving_key, script_pubkey)
 
-    res = json.dumps({
-        "tx": hexlify(tx.serialize()),
-    })
-    return res
+    return json.dumps({"tx": hexlify(tx.serialize())})
 
 async def serial_manager():
     sreader = uasyncio.StreamReader(stdin)
@@ -271,7 +350,7 @@ async def serial_manager():
 if __name__ == '__main__':
     main()
     loop = uasyncio.get_event_loop()
-    # FIXME: only run this in when a key is available for signing
+    ## FIXME: only run this in when a key is available for signing
     loop.create_task(serial_manager())
     loop.run_forever()
 

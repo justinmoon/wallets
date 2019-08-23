@@ -44,6 +44,8 @@ def sign(tx, input_meta, output_meta):
     msg = json.dumps({'command': 'sign', 'tx': tx, 'input_meta': input_meta,
                       'output_meta': output_meta})
     res = send_and_recv(msg)
+    if 'error' in res:
+        raise Exception('cancelled by user')
     return res['tx']
 
 if __name__ == '__main__':
