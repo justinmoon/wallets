@@ -2,37 +2,27 @@ import os
 import json
 import time
 import uasyncio
-from asyn import Event
-from binascii import unhexlify, hexlify
+
+from sys import stdin, stdout
 from io import BytesIO
-from m5stack import LCD, fonts, color565, SDCard
-from m5stack.pins import BUTTON_A_PIN, BUTTON_B_PIN, BUTTON_C_PIN
+from binascii import unhexlify, hexlify
+
+from asyn import Event
+from m5stack import LCD, fonts, color565, SDCard, buttons
 from bitcoin.mnemonic import secure_mnemonic
 from bitcoin.hd import HDPrivateKey
 from bitcoin.tx import Tx
 from bitcoin.script import Script
-from aswitch import Pushbutton
-from machine import Pin
-from sys import stdin, stdout
 
-# FIXME: move to library
-A_PIN = Pin(BUTTON_A_PIN, Pin.IN, Pin.PULL_UP)
-B_PIN = Pin(BUTTON_B_PIN, Pin.IN, Pin.PULL_UP)
-C_PIN = Pin(BUTTON_C_PIN, Pin.IN, Pin.PULL_UP)
-A_BUTTON = Pushbutton(A_PIN)
-B_BUTTON = Pushbutton(B_PIN)
-C_BUTTON = Pushbutton(C_PIN)
-
+# globals
 lcd = LCD()
-lcd.set_font(fonts.tt24)
-lcd.erase()
-
-# synchronization primitives
 SIGN_IT = Event()
 DONT_SIGN_IT = Event()
+KEY = None
 
 # TODO: I need a router class that keeps track of history, can go "back"
 class Screen:
+    '''Abstract base class for different screens in the wallet'''
 
     def a_release(self):
         pass
@@ -43,38 +33,41 @@ class Screen:
     def c_release(self):
         pass
 
+    def render(self):
+        raise NotImplementedError()
+
     def visit(self):
-        A_BUTTON.release_func(self.a_release)
-        B_BUTTON.release_func(self.b_release)
-        C_BUTTON.release_func(self.c_release)
+        '''router function sets button callbacks and renders screen'''
+        buttons.A.release_func(self.a_release)
+        buttons.B.release_func(self.b_release)
+        buttons.C.release_func(self.c_release)
         self.render()
 
 class TraverseScreen(Screen):
 
-    def __init__(self, master_key, address_index=0, address_type='legacy'):
-        self.master_key = master_key
+    def __init__(self, address_index=0, address_type='legacy'):
         self.address_index = address_index
         self.address_type = address_type
 
     def a_release(self):
         '''decrement address index'''
         if self.address_index != 0:
-            TraverseScreen(self.master_key, self.address_index - 1, self.address_type).visit()
+            TraverseScreen(self.address_index - 1, self.address_type).visit()
 
     def b_release(self):
         '''flip address type'''
         address_type = 'bech32' if self.address_type == 'legacy' else 'legacy'
-        TraverseScreen(self.master_key, self.address_index, address_type).visit()
+        TraverseScreen(self.address_index, address_type).visit()
 
     def c_release(self):
         '''increment address index'''
-        TraverseScreen(self.master_key, self.address_index + 1, self.address_type).visit()
+        TraverseScreen(self.address_index + 1, self.address_type).visit()
     
     def render(self):
         # calculate address and derivation path
         path = "m/44'/1'/0'/{}".format(self.address_index).encode()
-        key = self.master_key.traverse(path)
-        address = key.address() if self.address_type == 'legacy' else key.bech32_address()
+        child = KEY.traverse(path)
+        address = child.address() if self.address_type == 'legacy' else child.bech32_address()
 
         # print
         lcd.erase()
@@ -95,8 +88,8 @@ class MnemonicScreen(Screen):
     def on_verify(self):
         '''display addresses once they've confirmed mnemonic'''
         # FIXME: slow, display loading screen
-        key = save_key(self.mnemonic)
-        TraverseScreen(key).visit()
+        save_key(self.mnemonic)
+        TraverseScreen().visit()
 
     def a_release(self):
         self.on_verify()
@@ -105,7 +98,6 @@ class MnemonicScreen(Screen):
         self.on_verify()
 
     def c_release(self):
-        print('verify')
         self.on_verify()
     
     def render(self):
@@ -125,53 +117,6 @@ class HomeScreen(Screen):
     def render(self):
         lcd.erase()
         lcd.title("Home")
-
-class SigningComplete(Screen):
-
-    def render(self):
-        lcd.erase()
-        lcd.alert("Transaction signed")
-        time.sleep(3)
-        HomeScreen().visit()
-
-class SigningCancelled(Screen):
-
-    def render(self):
-        lcd.erase()
-        lcd.alert("Aborted")
-        time.sleep(3)
-        HomeScreen().visit()
-
-def seed_rng():
-    from urandom import seed
-    seed(999)
-
-def load_key():
-    with open('/sd/key.txt', 'rb') as f:
-        return HDPrivateKey.parse(f)
-
-def save_key(mnemonic):
-    derivation_path = b'm'
-    password = ''
-    key = HDPrivateKey.from_mnemonic(mnemonic, password, path=derivation_path, testnet=True)
-    with open('/sd/key.txt', 'wb') as f:
-        f.write(key.serialize())
-    return key
-
-def main():
-    # mount SD card to filesystem
-    sd = SDCard()
-    os.mount(sd, '/sd')
-
-    # load key if it exists
-    if 'key.txt' in os.listdir('/sd'):
-        key = load_key()
-        TraverseScreen(key).visit()
-    # create and display mnemonic, derive and save key if it doesn't
-    else:
-        seed_rng()
-        mnemonic = secure_mnemonic()
-        MnemonicScreen(mnemonic).visit()
 
 class ConfirmOutputScreen(Screen):
 
@@ -213,6 +158,56 @@ class ConfirmOutputScreen(Screen):
 
         lcd.label_buttons("no", "", "yes")
 
+class SigningComplete(Screen):
+
+    def render(self):
+        lcd.erase()
+        lcd.alert("Transaction signed")
+        time.sleep(3)
+        HomeScreen().visit()
+
+class SigningCancelled(Screen):
+
+    def render(self):
+        lcd.erase()
+        lcd.alert("Aborted")
+        time.sleep(3)
+        HomeScreen().visit()
+
+def seed_rng():
+    from urandom import seed
+    seed(999)
+
+def load_key():
+    global KEY
+    with open('/sd/key.txt', 'rb') as f:
+        KEY = HDPrivateKey.parse(f)
+
+def save_key(mnemonic):
+    '''saves key to disk, sets global KEY variable'''
+    global KEY
+    derivation_path = b'm'
+    password = ''
+    KEY = HDPrivateKey.from_mnemonic(mnemonic, password, path=derivation_path, testnet=True)
+    with open('/sd/key.txt', 'wb') as f:
+        f.write(KEY.serialize())
+
+def main():
+    # mount SD card to filesystem
+    sd = SDCard()
+    os.mount(sd, '/sd')
+
+    # load key if it exists
+    if 'key.txt' in os.listdir('/sd'):
+        load_key()
+        TraverseScreen().visit()
+    # create and display mnemonic, derive and save key if it doesn't
+    else:
+        seed_rng()
+        mnemonic = secure_mnemonic()
+        MnemonicScreen(mnemonic).visit()
+
+
 async def sign_tx(tx, input_meta, output_meta):
     assert len(tx.tx_outs) == len(output_meta)
     assert len(tx.tx_ins) == len(input_meta)
@@ -228,12 +223,11 @@ async def sign_tx(tx, input_meta, output_meta):
             return json.dumps({"error": "cancelled by user"})
         await uasyncio.sleep(1)
 
-    master_key = load_key()
     for i, meta in enumerate(input_meta):
         script_hex = meta['script_pubkey']
         script_pubkey = Script.parse(BytesIO(unhexlify(script_hex)))
         receiving_path = meta['derivation_path'].encode()
-        receiving_key = master_key.traverse(receiving_path).private_key
+        receiving_key = KEY.traverse(receiving_path).private_key
         tx.sign_input_p2pkh(i, receiving_key, script_pubkey)
 
     return json.dumps({"tx": hexlify(tx.serialize())})
@@ -252,22 +246,17 @@ async def serial_manager():
             print(e)
             continue
 
-        # lcd.print(msg_str)
-
         if msg['command'] == 'xpub':
-            master_key = load_key()
             derivation_path = msg['derivation_path'].encode()
-            print(derivation_path)
-            key = master_key.traverse(derivation_path)
-            xpub = key.xpub()
+            child = KEY.traverse(derivation_path)
+            xpub = child.xpub()
             res = json.dumps({"xpub": xpub})
             await swriter.awrite(res+'\n')
 
         if msg['command'] == 'address':
-            master_key = load_key()
             derivation_path = msg['derivation_path'].encode()
-            key = master_key.traverse(derivation_path)
-            address = key.address()
+            child = KEY.traverse(derivation_path)
+            address = child.address()
             res = json.dumps({"address": address})
             await swriter.awrite(res+'\n')
 
