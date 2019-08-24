@@ -175,6 +175,7 @@ class SigningCancelled(Screen):
         HomeScreen().visit()
 
 def seed_rng():
+    # FIXME
     from urandom import seed
     seed(999)
 
@@ -186,13 +187,13 @@ def load_key():
 def save_key(mnemonic):
     '''saves key to disk, sets global KEY variable'''
     global KEY
-    derivation_path = b'm'
     password = ''
+    derivation_path = b'm'
     KEY = HDPrivateKey.from_mnemonic(mnemonic, password, path=derivation_path, testnet=True)
     with open('/sd/key.txt', 'wb') as f:
         f.write(KEY.serialize())
 
-def main():
+def start():
     # mount SD card to filesystem
     sd = SDCard()
     os.mount(sd, '/sd')
@@ -207,13 +208,15 @@ def main():
         mnemonic = secure_mnemonic()
         MnemonicScreen(mnemonic).visit()
 
-
 async def sign_tx(tx, input_meta, output_meta):
-    assert len(tx.tx_outs) == len(output_meta)
-    assert len(tx.tx_ins) == len(input_meta)
+    # sanity checks
+    assert len(tx.tx_outs) == len(output_meta), "outputs and ouput_meta different lengths"
+    assert len(tx.tx_ins) == len(input_meta), "inputs and inputs_meta different lengths"
 
+    # ask user to confirm each output
     ConfirmOutputScreen(tx, 0, output_meta).visit()
 
+    # wait for confirmation or cancellation
     while True:
         if SIGN_IT.is_set():
             SIGN_IT.clear()
@@ -223,6 +226,7 @@ async def sign_tx(tx, input_meta, output_meta):
             return json.dumps({"error": "cancelled by user"})
         await uasyncio.sleep(1)
 
+    # sign each input
     for i, meta in enumerate(input_meta):
         script_hex = meta['script_pubkey']
         script_pubkey = Script.parse(BytesIO(unhexlify(script_hex)))
@@ -230,9 +234,8 @@ async def sign_tx(tx, input_meta, output_meta):
         receiving_key = KEY.traverse(receiving_path).private_key
         tx.sign_input_p2pkh(i, receiving_key, script_pubkey)
 
-    return json.dumps({"tx": hexlify(tx.serialize())})
-
 async def serial_manager():
+    # TODO: refactor this into base firmware. wallet just handles the messages ...
     sreader = uasyncio.StreamReader(stdin)
     swriter = uasyncio.StreamWriter(stdout, {})  # TODO: what is this second param?
     while True:
@@ -262,11 +265,12 @@ async def serial_manager():
 
         if msg['command'] == 'sign':
             tx = Tx.parse(BytesIO(unhexlify(msg['tx'])), testnet=True)
-            res = await sign_tx(tx, msg['input_meta'], msg['output_meta'])
+            await sign_tx(tx, msg['input_meta'], msg['output_meta'])
+            res = json.dumps({"tx": hexlify(tx.serialize())})
             await swriter.awrite(res+'\n')
 
 if __name__ == '__main__':
-    main()
+    start()
     loop = uasyncio.get_event_loop()
     ## FIXME: only run this in when a key is available for signing
     loop.create_task(serial_manager())
