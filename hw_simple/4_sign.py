@@ -31,61 +31,6 @@ lcd.erase()
 SIGN_IT = Event()
 DONT_SIGN_IT = Event()
 
-def title(text):
-    # calculations
-    text_width = fonts.tt32.get_width(text)
-    padding_x = (lcd.width - text_width) // 2
-    padding_y = 20
-
-    # configure lcd
-    lcd.set_font(fonts.tt32)
-    lcd.set_pos(padding_x, padding_y)
-
-    # print
-    lcd.print(text)
-
-def alert(text):
-    # calculation
-    lcd.set_font(fonts.tt32)
-    text_width = fonts.tt32.get_width(text)
-    padding_x = (lcd.width - text_width) // 2
-    text_height = fonts.tt32.height()
-    padding_y = (lcd.height - text_height) // 2
-    lcd.set_pos(padding_x, padding_y)
-
-    # print
-    lcd.print(text)
-
-def body(text):
-    lcd.set_font(fonts.tt24)
-    lcd.set_pos(0, 60)
-    lcd.print(text)
-
-def label_buttons(label_a, label_b, label_c):
-    # variables
-    lcd.set_font(fonts.tt14)
-    white = color565(255, 255, 255)
-    padding_y = 5
-    box_height = lcd._font.height() + 2 * padding_y
-    line_height = lcd.height - box_height
-    lcd.set_pos(0, line_height)
-
-    # draw horizontal line
-    for x in range(lcd.width):
-        lcd.pixel(x, lcd._y, white)
-
-    # draw vertical line
-    step = lcd.width // 3
-    for factor in range(1, 3):
-        for y in range(line_height, lcd.height):
-            lcd.pixel(step * factor, y, white)
-
-    # write labels
-    for i, label in enumerate([label_a, label_b, label_c]):
-        padding_x = (lcd.width // 3 - lcd._font.get_width(label)) // 2
-        lcd.set_pos(i*step + padding_x, lcd.height - 20)
-        lcd.print(label)
-
 # TODO: I need a router class that keeps track of history, can go "back"
 class Screen:
 
@@ -140,7 +85,7 @@ class TraverseScreen(Screen):
 
         a = 'prev' if self.address_index > 0 else ''
         b = 'segwit' if self.address_type == 'legacy' else 'legacy'
-        label_buttons(a, b, 'next')
+        lcd.label_buttons(a, b, 'next')
 
 class MnemonicScreen(Screen):
 
@@ -164,43 +109,28 @@ class MnemonicScreen(Screen):
         self.on_verify()
     
     def render(self):
-        title("Seed Words")
+        lcd.title("Seed Words")
 
-        # set font
-        lcd.set_font(fonts.tt24)
-
-        # variables for printing
+        # format mnemonic and print
         words = self.mnemonic.split()
         labeled = [str(i) + ". " + word for i, word in enumerate(words, 1)]
         words_per_col = len(words) // 2
-        col_width = max([lcd._font.get_width(w) for w in labeled])
-        # 2 colunms with equal spacing on all sides
-        pad_x = (lcd.width - 2 * col_width) // 3
-        pad_y = 20
-        left_col_x, left_col_y = pad_x, lcd._y + pad_y
-        right_col_x, right_col_y = 2 * pad_x + col_width, lcd._y + pad_y
+        left = labeled[:words_per_col]
+        right = labeled[words_per_col:]
 
-        # print left column
-        lcd.set_pos(left_col_x, left_col_y)
-        for word in labeled[:words_per_col]:
-            lcd.print(word)
-
-        # print right column
-        lcd.set_pos(right_col_x, right_col_y)
-        for word in labeled[words_per_col:]:
-            lcd.print(word)
+        lcd.body_columns(left, right)
 
 class HomeScreen(Screen):
 
     def render(self):
         lcd.erase()
-        title("Home")
+        lcd.title("Home")
 
 class SigningComplete(Screen):
 
     def render(self):
         lcd.erase()
-        alert("Transaction signed")
+        lcd.alert("Transaction signed")
         time.sleep(3)
         HomeScreen().visit()
 
@@ -208,7 +138,7 @@ class SigningCancelled(Screen):
 
     def render(self):
         lcd.erase()
-        alert("Aborted")
+        lcd.alert("Aborted")
         time.sleep(3)
         HomeScreen().visit()
 
@@ -270,7 +200,7 @@ class ConfirmOutputScreen(Screen):
     def render(self):
         lcd.erase()
 
-        title("Confirm Output")
+        lcd.title("Confirm Output")
 
         lcd.set_font(fonts.tt24)
         tx_out = self.tx.tx_outs[self.index]
@@ -279,9 +209,9 @@ class ConfirmOutputScreen(Screen):
         amount = tx_out.amount
         change_str = " (change)" if self.output_meta[self.index]['change'] else ''
         msg = "Are you sure you want to send {} satoshis to {}{}?".format(amount, address, change_str)
-        body(msg)
+        lcd.body(msg)
 
-        label_buttons("no", "", "yes")
+        lcd.label_buttons("no", "", "yes")
 
 async def sign_tx(tx, input_meta, output_meta):
     assert len(tx.tx_outs) == len(output_meta)
@@ -303,7 +233,6 @@ async def sign_tx(tx, input_meta, output_meta):
         script_hex = meta['script_pubkey']
         script_pubkey = Script.parse(BytesIO(unhexlify(script_hex)))
         receiving_path = meta['derivation_path'].encode()
-        print(receiving_path)
         receiving_key = master_key.traverse(receiving_path).private_key
         tx.sign_input_p2pkh(i, receiving_key, script_pubkey)
 
